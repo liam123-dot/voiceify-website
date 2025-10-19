@@ -160,6 +160,8 @@ export async function GET(request: Request, context: RouteContext) {
         .filter((agent): agent is { id: string | undefined; name: string } => agent.id !== undefined)
     }))
 
+    console.log('Tools with agents:', JSON.stringify(toolsWithAgents, null, 2))
+
     return NextResponse.json({ success: true, tools: toolsWithAgents })
   } catch (error) {
     console.error('Error in /api/[organizationId]/tools GET:', error)

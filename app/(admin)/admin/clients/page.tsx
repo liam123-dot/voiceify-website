@@ -1,8 +1,24 @@
 import { WorkOS } from '@workos-inc/node'
-import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { createServiceClient } from "@/lib/supabase/server"
+import {
+  Table,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import { IconBuilding } from "@tabler/icons-react"
+import { ClientsTableBody } from "./clients-table-body"
+
+// const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+const baseUrl = 'http://localhost:3000';
 
 export default async function ClientsPage() {
 
@@ -40,6 +56,56 @@ export default async function ClientsPage() {
     }
   }
 
+  if (error) {
+    return (
+      <div className="px-4 lg:px-6">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
+              <p className="text-muted-foreground mt-2">
+                View and manage all client organizations
+              </p>
+            </div>
+          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-destructive">{error}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (organizations.length === 0) {
+    return (
+      <div className="px-4 lg:px-6">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
+              <p className="text-muted-foreground mt-2">
+                View and manage all client organizations
+              </p>
+            </div>
+          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <IconBuilding />
+              </EmptyMedia>
+              <EmptyTitle>No Clients Yet</EmptyTitle>
+              <EmptyDescription>
+                No organizations found.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="px-4 lg:px-6">
       <div className="space-y-6">
@@ -52,65 +118,24 @@ export default async function ClientsPage() {
           </div>
         </div>
 
-        {error ? (
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-destructive">{error}</p>
-            </CardContent>
-          </Card>
-        ) : organizations.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">
-                No organizations found.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {organizations.map((org) => (
-              <Link
-                key={org.id}
-                href={`/admin/clients/${org.slug}`}
-                className="transition-transform hover:scale-[1.02]"
-              >
-                <Card className="h-full cursor-pointer hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="truncate">{org.name}</span>
-                      {org.allowProfilesOutsideOrganization && (
-                        <Badge variant="secondary" className="ml-2">
-                          Open
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    {org.domains && org.domains.length > 0 && (
-                      <CardDescription>
-                        {org.domains.map((d: { domain: string }) => d.domain).join(', ')}
-                      </CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">ID:</span>
-                        <span className="font-mono text-xs">{org.id}</span>
-                      </div>
-                      {org.createdAt && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Created:</span>
-                          <span className="text-xs">
-                            {new Date(org.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {organizations.length} {organizations.length === 1 ? 'client' : 'clients'}
+          </p>
+          <div className="rounded-lg border overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="font-semibold">Name</TableHead>
+                  <TableHead className="font-semibold">Created</TableHead>
+                  <TableHead className="text-right font-semibold w-24"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <ClientsTableBody organizations={organizations} baseUrl={baseUrl || ''} />
+            </Table>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

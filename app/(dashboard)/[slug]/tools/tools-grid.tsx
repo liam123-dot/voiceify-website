@@ -43,7 +43,7 @@ interface ToolWithAgents extends ToolCardData {
 
 function getToolIcon(tool: ToolWithAgents) {
   const metadata = tool.config_metadata as Record<string, unknown>
-
+  console.log('Metadata:', JSON.stringify(metadata, null, 2))
   const pipedreamMetadata = metadata.pipedreamMetadata as Record<string, unknown> | undefined
   if (tool.type === 'pipedream_action' && pipedreamMetadata?.appImgSrc) {
     return (
