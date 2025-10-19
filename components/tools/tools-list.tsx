@@ -1,6 +1,8 @@
+'use client'
+
+import { useState, useEffect } from "react"
 import { IconTool } from "@tabler/icons-react"
 import Link from "next/link"
-import { createServiceClient } from "@/lib/supabase/server"
 import { Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -21,7 +23,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { ToolsGrid } from "@/app/(dashboard)/[slug]/tools/tools-grid"
-import { getAuthSession } from "@/lib/auth"
 
 type ToolsListProps = {
   slug: string
@@ -42,24 +43,40 @@ type Tool = {
   created_at: string
 }
 
-export async function ToolsList({ slug }: ToolsListProps) {
+export function ToolsList({ slug }: ToolsListProps) {
+  const [tools, setTools] = useState<Tool[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const { user, organizationId } = await getAuthSession(slug)
+  useEffect(() => {
+    const fetchTools = async () => {
+      try {
+        setIsLoading(true)
+        const response = await fetch(`/api/${slug}/tools`)
+        const data = await response.json()
 
-  if (!user || !organizationId) {
-    return null
-  } 
+        if (data.success && data.tools) {
+          setTools((data.tools || []) as Tool[])
+        } else {
+          setTools([])
+        }
+      } catch (error) {
+        console.error('Error fetching tools:', error)
+        setTools([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-  const supabase = await createServiceClient()
+    fetchTools()
+  }, [slug])
 
-  // Fetch tools
-  const { data } = await supabase
-    .from('tools')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .order('created_at', { ascending: false })
-
-  const tools = ((data || []) as Tool[]).map(tool => ({ ...tool, slug }))
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <p className="text-sm text-muted-foreground">Loading tools...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

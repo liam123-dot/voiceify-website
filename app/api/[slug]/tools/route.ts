@@ -116,14 +116,18 @@ export async function GET(request: Request, context: RouteContext) {
 
     const supabase = await createClient()
 
-    // Get all tools for the user's organization
+    // Get all tools for the user's organization with their associated agents
     const { data: tools, error: toolsError } = await supabase
       .from('tools')
-      .select('*')
+      .select(`
+        *,
+        agent_tools(
+          agent_id,
+          agents(id, name)
+        )
+      `)
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
-
-    console.log('Tools:', tools)
 
     if (toolsError) {
       console.error('Error fetching tools:', toolsError)
@@ -133,7 +137,18 @@ export async function GET(request: Request, context: RouteContext) {
       )
     }
 
-    return NextResponse.json({ success: true, tools: tools || [] })
+    // Transform the data to include agents in a cleaner format
+    const toolsWithAgents = (tools || []).map((tool: any) => ({
+      ...tool,
+      agents: (tool.agent_tools || [])
+        .map((at: any) => ({
+          id: at.agents?.id,
+          name: at.agents?.name || 'Unnamed Agent'
+        }))
+        .filter((agent: any) => agent.id) // Filter out any null agents
+    }))
+
+    return NextResponse.json({ success: true, tools: toolsWithAgents })
   } catch (error) {
     console.error('Error in /api/[organizationId]/tools GET:', error)
     return NextResponse.json(
