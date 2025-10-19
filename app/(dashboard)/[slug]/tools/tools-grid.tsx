@@ -140,9 +140,9 @@ export function ToolsGrid({ tools: initialTools, slug }: ToolsGridProps) {
 
   useEffect(() => {
     // Tools already come with agents from the API
-    const enhancedTools = initialTools.map(tool => ({
+    const enhancedTools = initialTools.map((tool: ToolCardData & { agents?: AgentInfo[] }) => ({
       ...tool,
-      agents: (tool as any).agents || [],
+      agents: tool.agents || [],
     }))
     setToolsWithAgents(enhancedTools)
   }, [initialTools])

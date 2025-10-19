@@ -18,7 +18,7 @@ export async function GET(
 
     const supabase = await createServiceClient()
 
-    const { data: agents, error } = await supabase
+    const { data: agents, error: _error } = await supabase
       .from('agents')
       .select('id, name')
       .eq('organization_id', organizationId)

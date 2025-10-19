@@ -138,14 +138,26 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // Transform the data to include agents in a cleaner format
-    const toolsWithAgents = (tools || []).map((tool: any) => ({
+    interface AgentToolRecord {
+      agent_id: string
+      agents: {
+        id: string
+        name: string
+      } | null
+    }
+
+    interface ToolRecord {
+      agent_tools: AgentToolRecord[]
+    }
+
+    const toolsWithAgents = (tools || []).map((tool: ToolRecord & Record<string, unknown>) => ({
       ...tool,
       agents: (tool.agent_tools || [])
-        .map((at: any) => ({
+        .map((at: AgentToolRecord) => ({
           id: at.agents?.id,
           name: at.agents?.name || 'Unnamed Agent'
         }))
-        .filter((agent: any) => agent.id) // Filter out any null agents
+        .filter((agent): agent is { id: string | undefined; name: string } => agent.id !== undefined)
     }))
 
     return NextResponse.json({ success: true, tools: toolsWithAgents })
