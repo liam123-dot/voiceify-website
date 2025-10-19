@@ -38,17 +38,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   console.log('🔧 Tool execution request for tool ID:', toolId)
   console.log('🤖 AI-provided parameters:', JSON.stringify(aiProvidedParams, null, 2))
   
+  // Extract metadata BEFORE flattening parameters
+  const callerPhoneNumber = (aiProvidedParams.metadata as Record<string, unknown> | undefined)?.['callerPhoneNumber'] as string | undefined
+  const calledPhoneNumber = (aiProvidedParams.metadata as Record<string, unknown> | undefined)?.['calledPhoneNumber'] as string | undefined
+
+  console.log(`📞 Context - Caller: ${callerPhoneNumber}, Called: ${calledPhoneNumber}`)
+  
   // Flatten nested parameters if they exist
   if (aiProvidedParams.parameters && typeof aiProvidedParams.parameters === 'object') {
     const params = aiProvidedParams.parameters as Record<string, unknown>
     // Extract parameters and keep them flat at the top level
     aiProvidedParams = { ...params }
   }
-
-  const callerPhoneNumber = (aiProvidedParams.metadata as Record<string, unknown> | undefined)?.['callerPhoneNumber'] as string | undefined
-  const calledPhoneNumber = (aiProvidedParams.metadata as Record<string, unknown> | undefined)?.['calledPhoneNumber'] as string | undefined
-
-  console.log(`📞 Context - Caller: ${callerPhoneNumber}, Called: ${calledPhoneNumber}`)
 
   // ===================================================================
   // FETCH TOOL FROM DATABASE
