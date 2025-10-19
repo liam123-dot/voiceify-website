@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { SchemaBuilder } from "./SchemaBuilder"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -68,13 +69,16 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-interface CreateEvaluationFormProps {
+interface EvaluationFormProps {
   slug: string
+  mode: 'create' | 'edit'
+  evaluationId?: string
 }
 
-export function CreateEvaluationForm({ slug }: CreateEvaluationFormProps) {
+export function EvaluationForm({ slug, mode, evaluationId }: EvaluationFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(mode === 'edit')
   const [selectedProvider, setSelectedProvider] = useState<string>('')
 
   const form = useForm<FormValues>({
@@ -85,7 +89,7 @@ export function CreateEvaluationForm({ slug }: CreateEvaluationFormProps) {
       prompt: "",
       model_provider: "",
       model_name: "",
-      output_schema: {
+      output_schema: mode === 'create' ? {
         type: "object",
         properties: {
           score: {
@@ -94,9 +98,46 @@ export function CreateEvaluationForm({ slug }: CreateEvaluationFormProps) {
           }
         },
         required: ["score"]
-      },
+      } : { type: "object", properties: {} },
     },
   })
+
+  useEffect(() => {
+    if (mode === 'edit' && evaluationId) {
+      const fetchEvaluation = async () => {
+        try {
+          setIsLoading(true)
+          const response = await fetch(`/api/${slug}/evaluations/${evaluationId}`)
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch evaluation')
+          }
+
+          const data = await response.json()
+          const evaluation = data.evaluation
+
+          form.reset({
+            name: evaluation.name,
+            description: evaluation.description || "",
+            prompt: evaluation.prompt,
+            model_provider: evaluation.model_provider,
+            model_name: evaluation.model_name,
+            output_schema: evaluation.output_schema,
+          })
+
+          setSelectedProvider(evaluation.model_provider)
+        } catch (error) {
+          console.error('Error fetching evaluation:', error)
+          toast.error('Failed to load evaluation')
+          router.push(`/${slug}/evaluations`)
+        } finally {
+          setIsLoading(false)
+        }
+      }
+
+      fetchEvaluation()
+    }
+  }, [slug, evaluationId, mode, form, router])
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -108,8 +149,14 @@ export function CreateEvaluationForm({ slug }: CreateEvaluationFormProps) {
         return
       }
 
-      const response = await fetch(`/api/${slug}/evaluations`, {
-        method: 'POST',
+      const url = mode === 'create' 
+        ? `/api/${slug}/evaluations`
+        : `/api/${slug}/evaluations/${evaluationId}`
+      
+      const method = mode === 'create' ? 'POST' : 'PUT'
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -118,20 +165,34 @@ export function CreateEvaluationForm({ slug }: CreateEvaluationFormProps) {
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to create evaluation')
+        throw new Error(data.error || `Failed to ${mode} evaluation`)
       }
 
       const data = await response.json()
-      toast.success('Evaluation created successfully')
+      toast.success(`Evaluation ${mode === 'create' ? 'created' : 'updated'} successfully`)
       
-      // Redirect to the evaluation detail page
-      router.push(`/${slug}/evaluations/${data.evaluation.id}`)
+      if (mode === 'create') {
+        router.push(`/${slug}/evaluations/${data.evaluation.id}`)
+      } else {
+        router.refresh()
+      }
     } catch (error) {
-      console.error('Error creating evaluation:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to create evaluation')
+      console.error(`Error ${mode === 'create' ? 'creating' : 'updating'} evaluation:`, error)
+      toast.error(error instanceof Error ? error.message : `Failed to ${mode} evaluation`)
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border bg-card p-6 space-y-6">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-10 w-32" />
+      </div>
+    )
   }
 
   return (
@@ -291,7 +352,10 @@ export function CreateEvaluationForm({ slug }: CreateEvaluationFormProps) {
             </div>
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Evaluation"}
+                {isSubmitting 
+                  ? (mode === 'create' ? "Creating..." : "Saving...") 
+                  : (mode === 'create' ? "Create Evaluation" : "Save Changes")
+                }
               </Button>
               <Button
                 type="button"
@@ -308,4 +372,5 @@ export function CreateEvaluationForm({ slug }: CreateEvaluationFormProps) {
     </div>
   )
 }
+
 

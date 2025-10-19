@@ -1,4 +1,4 @@
-import { EditEvaluationForm } from "@/components/evaluations/EditEvaluationForm"
+import { EvaluationForm } from "@/components/evaluations/EvaluationForm"
 
 type PageProps = {
   params: Promise<{ slug: string; id: string }>
@@ -16,7 +16,7 @@ export default async function EditEvaluationPage({ params }: PageProps) {
             Update the evaluation settings and configuration.
           </p>
         </div>
-        <EditEvaluationForm slug={slug} evaluationId={id} />
+        <EvaluationForm slug={slug} mode="edit" evaluationId={id} />
       </div>
     </div>
   )

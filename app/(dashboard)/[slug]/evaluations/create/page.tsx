@@ -1,4 +1,4 @@
-import { CreateEvaluationForm } from "@/components/evaluations/CreateEvaluationForm"
+import { EvaluationForm } from "@/components/evaluations/EvaluationForm"
 
 type PageProps = {
   params: Promise<{ slug: string }>
@@ -16,7 +16,7 @@ export default async function CreateEvaluationPage({ params }: PageProps) {
             Create a new evaluation to process call transcripts and generate structured outputs.
           </p>
         </div>
-        <CreateEvaluationForm slug={slug} />
+        <EvaluationForm slug={slug} mode="create" />
       </div>
     </div>
   )

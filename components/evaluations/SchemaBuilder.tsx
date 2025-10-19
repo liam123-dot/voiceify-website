@@ -51,12 +51,12 @@ export function SchemaBuilder({ value, onChange }: SchemaBuilderProps) {
   const [properties, setProperties] = useState<SchemaProperty[]>([])
   const [nextId, setNextId] = useState(1)
 
-  const parseSchemaToProperties = useCallback((schema: JSONSchema | JSONSchemaProperty): SchemaProperty[] => {
+  const parseSchemaToProperties = useCallback((schema: JSONSchema | JSONSchemaProperty, idCounter: { current: number }): SchemaProperty[] => {
     if (!schema.properties) return []
 
     return Object.entries(schema.properties).map(([name, prop]) => {
       const property: SchemaProperty = {
-        id: `prop-${Math.random().toString(36).substr(2, 9)}`,
+        id: `prop-${idCounter.current++}`,
         name,
         type: prop.type || 'string',
         description: prop.description || '',
@@ -70,18 +70,18 @@ export function SchemaBuilder({ value, onChange }: SchemaBuilderProps) {
           properties: prop.properties,
           required: prop.required,
         }
-        property.properties = parseSchemaToProperties(nestedSchema)
+        property.properties = parseSchemaToProperties(nestedSchema, idCounter)
       }
 
       if (prop.type === 'array' && prop.items) {
         property.items = {
-          id: `prop-${Math.random().toString(36).substr(2, 9)}`,
+          id: `prop-${idCounter.current++}`,
           name: 'items',
           type: prop.items.type || 'string',
           description: prop.items.description || '',
           required: false,
           properties: prop.items.type === 'object' && prop.items.properties
-            ? parseSchemaToProperties(prop.items as JSONSchemaProperty)
+            ? parseSchemaToProperties(prop.items as JSONSchemaProperty, idCounter)
             : undefined,
         }
       }
@@ -90,13 +90,15 @@ export function SchemaBuilder({ value, onChange }: SchemaBuilderProps) {
     })
   }, [])
 
-  // Parse JSON schema into our property structure
+  // Parse JSON schema into our property structure - only on initial mount
   useEffect(() => {
-    if (value && value.properties) {
-      const parsed = parseSchemaToProperties(value)
+    if (value && value.properties && properties.length === 0) {
+      const idCounter = { current: 1 }
+      const parsed = parseSchemaToProperties(value, idCounter)
       setProperties(parsed)
+      setNextId(idCounter.current)
     }
-  }, [parseSchemaToProperties, value]) // Only run once on mount
+  }, []) // Only run once on mount
 
   // Convert our property structure to JSON schema
   const propertiesToSchema = (props: SchemaProperty[]): JSONSchema => {
