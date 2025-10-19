@@ -14,12 +14,14 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 
 interface SiteHeaderProps {
   slug?: string
+  isAdmin?: boolean
 }
 
-export function SiteHeader({ slug }: SiteHeaderProps) {
+export function SiteHeader({ slug, isAdmin }: SiteHeaderProps) {
   const pathname = usePathname()
   const [agentNames, setAgentNames] = useState<Record<string, string>>({})
   const [toolNames, setToolNames] = useState<Record<string, string>>({})
@@ -29,6 +31,9 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
   const [loadingTools, setLoadingTools] = useState<Record<string, boolean>>({})
   const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState<Record<string, boolean>>({})
   const [loadingEvaluations, setLoadingEvaluations] = useState<Record<string, boolean>>({})
+
+  // Check if we should show the admin button
+  const showAdminButton = isAdmin && !pathname.startsWith('/admin')
 
   // Fetch agent or tool name if we're on their detail pages
   useEffect(() => {
@@ -242,6 +247,15 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
             ))}
           </BreadcrumbList>
         </Breadcrumb>
+        {showAdminButton && (
+          <div className="ml-auto">
+            <Link href="/admin">
+              <Button variant="outline" size="sm">
+                Admin Dashboard
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
     </header>
   )
