@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { IconLoader2, IconTrash, IconFile, IconLink, IconFileText, IconDatabase, IconExternalLink } from "@tabler/icons-react"
-import Link from 'next/link'
 import {
   Table,
   TableBody,
@@ -26,7 +25,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -40,14 +38,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AddItemDialog } from './AddItemDialog'
 import { toast } from "sonner"
@@ -186,8 +176,6 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
         return null
     }
   }
-
-  const isLoading = isLoadingKB || isLoadingItems
 
   return (
     <div className="space-y-6">

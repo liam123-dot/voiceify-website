@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import Image from 'next/image'
 import { z } from 'zod'
 import { PipedreamActionToolConfig, ToolFormProps, ParameterSource } from '@/types/tools'
 import { Button } from '@/components/ui/button'
@@ -383,7 +384,7 @@ export function PipedreamActionToolForm({
   }
 
   // Load remote options for a prop
-  const loadRemoteOptions = async (propName: string, query: string = '') => {
+  const loadRemoteOptions = useCallback(async (propName: string, query: string = '') => {
     if (!selectedAction || !selectedCredentialId) return
 
     setLoadingRemoteOptionsFor(propName)
@@ -463,7 +464,7 @@ export function PipedreamActionToolForm({
     } finally {
       setLoadingRemoteOptionsFor(null)
     }
-  }
+  }, [selectedAction, selectedCredentialId, slug, propsConfig])
 
   // Update prop config
   const updatePropConfig = (propName: string, config: Partial<PropConfig>) => {
@@ -502,7 +503,7 @@ export function PipedreamActionToolForm({
         loadRemoteOptions(prop.name)
       }
     })
-  }, [selectedAction, selectedCredentialId, propsConfig, loadingRemoteOptionsFor, remoteOptionsData])
+  }, [selectedAction, selectedCredentialId, propsConfig, loadingRemoteOptionsFor, remoteOptionsData, loadRemoteOptions])
 
   // Update parent whenever configuration changes
   useEffect(() => {
@@ -688,8 +689,7 @@ export function PipedreamActionToolForm({
       toast.error(`Missing required fields: ${validation.missingFields.join(', ')}`)
       return
     }
-    
-    const aiFields = getAiRequiredFields()
+
     setTestDialogAiValues({})
     setTestResults(null)
     setShowTestResults(false)
@@ -839,7 +839,7 @@ export function PipedreamActionToolForm({
                       >
                         <div className="flex flex-col items-center gap-2">
                           {app.imgSrc ? (
-                            <img src={app.imgSrc} alt={app.name} className="w-12 h-12 rounded" />
+                            <Image src={app.imgSrc} alt={app.name} width={48} height={48} className="rounded" />
                           ) : (
                             <div className="w-12 h-12 bg-muted rounded flex items-center justify-center text-lg font-medium">
                               {app.name.charAt(0).toUpperCase()}
@@ -863,7 +863,7 @@ export function PipedreamActionToolForm({
                 <div className="flex items-center justify-between pb-3 border-b">
                   <div className="flex items-center gap-3">
                     {selectedApp.imgSrc && (
-                      <img src={selectedApp.imgSrc} alt={selectedApp.name} className="w-8 h-8 rounded" />
+                      <Image src={selectedApp.imgSrc} alt={selectedApp.name} width={32} height={32} className="rounded" />
                     )}
                     <div>
                       <div className="text-sm font-medium">{selectedApp.name}</div>

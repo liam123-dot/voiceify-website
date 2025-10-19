@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import {
   Table,
@@ -46,10 +47,12 @@ function getToolIcon(tool: ToolWithAgents) {
   const pipedreamMetadata = metadata.pipedreamMetadata as Record<string, unknown> | undefined
   if (tool.type === 'pipedream_action' && pipedreamMetadata?.appImgSrc) {
     return (
-      <img
+      <Image
         src={pipedreamMetadata.appImgSrc as string}
         alt={(pipedreamMetadata.appName as string) || 'App'}
         className="h-5 w-5 rounded object-cover"
+        width={20}
+        height={20}
       />
     )
   }
@@ -136,7 +139,6 @@ export function ToolsGrid({ tools: initialTools, slug }: ToolsGridProps) {
   const [deletingToolId, setDeletingToolId] = useState<string | null>(null)
   const [toolToDelete, setToolToDelete] = useState<string | null>(null)
   const [toolsWithAgents, setToolsWithAgents] = useState<ToolWithAgents[]>([])
-  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     // Tools already come with agents from the API
@@ -188,13 +190,7 @@ export function ToolsGrid({ tools: initialTools, slug }: ToolsGridProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  Loading...
-                </TableCell>
-              </TableRow>
-            ) : toolsWithAgents.length === 0 ? (
+            {toolsWithAgents.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   No tools yet

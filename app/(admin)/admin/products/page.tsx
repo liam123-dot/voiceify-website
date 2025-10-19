@@ -1,8 +1,6 @@
-import { withAuth } from "@workos-inc/authkit-nextjs"
 import CreateNewProduct from "@/app/(admin)/admin-components/create-new-product"
 
 export default async function ProductsPage() {
-  const { user } = await withAuth();
 
   return (
     <div className="px-4 lg:px-6">

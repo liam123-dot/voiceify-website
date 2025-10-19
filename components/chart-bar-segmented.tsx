@@ -3,8 +3,6 @@
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts"
 import { format, startOfHour, startOfDay, subDays, subHours, isAfter } from "date-fns"
-
-import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Card,
   CardAction,
@@ -63,8 +61,6 @@ export function ChartBarSegmented({
   onTimeRangeChange,
   onGroupByChange,
 }: ChartBarSegmentedProps) {
-  const isMobile = useIsMobile()
-
   const { processChartData, chartConfig, organizations } = React.useMemo(() => {
     // Filter calls by time range
     const now = new Date()

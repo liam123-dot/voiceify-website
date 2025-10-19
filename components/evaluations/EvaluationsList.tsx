@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { IconFlask, IconLoader2, IconPlus, IconTrash } from "@tabler/icons-react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -65,7 +64,7 @@ export function EvaluationsList({ slug }: EvaluationsListProps) {
   const [evaluationToDelete, setEvaluationToDelete] = useState<Evaluation | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const fetchEvaluations = async () => {
+  const fetchEvaluations = useCallback(async () => {
     try {
       setIsLoading(true)
       const response = await fetch(`/api/${slug}/evaluations`)
@@ -76,11 +75,11 @@ export function EvaluationsList({ slug }: EvaluationsListProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [slug])
 
   useEffect(() => {
     fetchEvaluations()
-  }, [slug])
+  }, [fetchEvaluations])
 
   const handleDeleteClick = (evaluation: Evaluation, e: React.MouseEvent) => {
     e.preventDefault()

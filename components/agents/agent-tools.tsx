@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -48,7 +49,7 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
   const [unassigningToolId, setUnassigningToolId] = useState<string | null>(null)
 
   // Fetch tools
-  const fetchTools = async () => {
+  const fetchTools = useCallback(async () => {
     try {
       setIsLoading(true)
 
@@ -97,11 +98,11 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [agentId, slug])
 
   useEffect(() => {
     fetchTools()
-  }, [agentId])
+  }, [fetchTools])
 
   // Assign a tool to the agent
   const handleAssignTool = async (toolId: string) => {
@@ -201,10 +202,12 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
 
     if (tool.type === 'pipedream_action' && pipedreamMetadata?.appImgSrc) {
       return (
-        <img
+        <Image
           src={pipedreamMetadata.appImgSrc as string}
           alt={(pipedreamMetadata.appName as string) || 'App'}
           className="h-5 w-5 rounded object-cover"
+          width={20}
+          height={20}
         />
       )
     }

@@ -229,7 +229,7 @@ export function SiteHeader({ slug, isAdmin }: SiteHeaderProps) {
         />
         <Breadcrumb>
           <BreadcrumbList>
-            {breadcrumbItems.map((item, index) => (
+            {breadcrumbItems.map((item) => (
               <div key={item.href} className="flex items-center gap-1 lg:gap-2">
                 <BreadcrumbItem>
                   {item.isLoading ? (

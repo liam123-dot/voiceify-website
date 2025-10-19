@@ -1,4 +1,3 @@
-import { withAuth } from "@workos-inc/authkit-nextjs"
 import { WorkOS } from '@workos-inc/node'
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -6,7 +5,6 @@ import { Badge } from "@/components/ui/badge"
 import { createServiceClient } from "@/lib/supabase/server"
 
 export default async function ClientsPage() {
-  const { user } = await withAuth()
 
   // Initialize WorkOS client
   const workos = new WorkOS(process.env.WORKOS_API_KEY!)

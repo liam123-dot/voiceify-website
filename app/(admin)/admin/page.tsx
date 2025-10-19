@@ -16,8 +16,6 @@ export default async function AdminPage() {
     .select('id, external_id, slug')
 
   // Fetch organization details from WorkOS
-  type WorkOSOrg = Awaited<ReturnType<typeof workos.organizations.listOrganizations>>['data'][number]
-  type OrgWithSlug = WorkOSOrg & { slug?: string }
   let organizations: Array<{ id: string; slug: string; name: string }> = []
 
   if (!dbError) {

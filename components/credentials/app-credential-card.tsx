@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { CheckCircle2, XCircle, AlertCircle, Loader2, Trash2, Plus, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -129,10 +130,12 @@ export function AppCredentialCard({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {app.imgSrc ? (
-                <img 
-                  src={app.imgSrc} 
+                <Image
+                  src={app.imgSrc}
                   alt={app.name}
-                  className="w-10 h-10 rounded object-contain flex-shrink-0"
+                  width={40}
+                  height={40}
+                  className="rounded object-contain flex-shrink-0"
                 />
               ) : (
                 <div className="w-10 h-10 rounded bg-muted flex items-center justify-center text-lg font-semibold flex-shrink-0">

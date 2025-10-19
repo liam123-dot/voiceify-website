@@ -3,8 +3,6 @@
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 import { format, startOfHour, startOfDay, subDays, subHours, isAfter } from "date-fns"
-
-import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Card,
   CardAction,
@@ -56,8 +54,6 @@ export function ChartAreaInteractive({
   onTimeRangeChange,
   onGroupByChange,
 }: ChartAreaInteractiveProps) {
-  const isMobile = useIsMobile()
-
   const processChartData = React.useMemo(() => {
     // Filter calls by time range
     const now = new Date()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,7 +35,7 @@ export function AgentEvaluations({ agentId, slug }: AgentEvaluationsProps) {
   const [unassigningEvalId, setUnassigningEvalId] = useState<string | null>(null)
 
   // Fetch evaluations
-  const fetchEvaluations = async () => {
+  const fetchEvaluations = useCallback(async () => {
     try {
       setIsLoading(true)
 
@@ -67,11 +67,11 @@ export function AgentEvaluations({ agentId, slug }: AgentEvaluationsProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [agentId, slug])
 
   useEffect(() => {
     fetchEvaluations()
-  }, [agentId, slug])
+  }, [fetchEvaluations])
 
   // Assign an evaluation to the agent
   const handleAssignEvaluation = async (evaluationId: string) => {

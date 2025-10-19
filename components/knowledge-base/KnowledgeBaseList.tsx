@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { IconDatabase, IconLoader2, IconPlus, IconTrash } from "@tabler/icons-react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -61,7 +60,7 @@ export function KnowledgeBaseList({ slug }: KnowledgeBaseListProps) {
   const [knowledgeBaseToDelete, setKnowledgeBaseToDelete] = useState<KnowledgeBase | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const fetchKnowledgeBases = async () => {
+  const fetchKnowledgeBases = useCallback(async () => {
     try {
       setIsLoading(true)
       const response = await fetch(`/api/${slug}/knowledge-bases`)
@@ -72,11 +71,11 @@ export function KnowledgeBaseList({ slug }: KnowledgeBaseListProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [slug])
 
   useEffect(() => {
     fetchKnowledgeBases()
-  }, [slug])
+  }, [fetchKnowledgeBases])
 
   const handleDeleteClick = (kb: KnowledgeBase, e: React.MouseEvent) => {
     e.preventDefault()

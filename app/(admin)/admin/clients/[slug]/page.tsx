@@ -1,4 +1,3 @@
-import { withAuth } from "@workos-inc/authkit-nextjs"
 import { WorkOS } from '@workos-inc/node'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -14,7 +13,6 @@ interface ClientPageProps {
 
 export default async function ClientUsersPage({ params }: ClientPageProps) {
   const { slug } = await params
-  const { user } = await withAuth()
 
   // Get organization from database (creates if doesn't exist and syncs with WorkOS)
   let organisation

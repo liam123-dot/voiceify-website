@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,7 +35,7 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
   const [unassigningKbId, setUnassigningKbId] = useState<string | null>(null)
 
   // Fetch knowledge bases
-  const fetchKnowledgeBases = async () => {
+  const fetchKnowledgeBases = useCallback(async () => {
     try {
       setIsLoading(true)
 
@@ -67,11 +67,11 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [agentId, slug])
 
   useEffect(() => {
     fetchKnowledgeBases()
-  }, [agentId, slug])
+  }, [fetchKnowledgeBases])
 
   // Assign a knowledge base to the agent
   const handleAssignKnowledgeBase = async (knowledgeBaseId: string) => {

@@ -1,10 +1,7 @@
-import { 
-  getLLMModel, 
-  getSTTModel, 
-  getTTSModel,
-  type LLMModel,
-  type STTModel,
-  type TTSModel 
+import {
+  getLLMModel,
+  getSTTModel,
+  getTTSModel
 } from './models';
 
 /**

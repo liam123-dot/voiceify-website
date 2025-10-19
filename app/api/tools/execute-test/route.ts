@@ -1,8 +1,6 @@
-import { createServiceClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { executeAction } from "@/lib/pipedream/actions"
 import { getAuthSession } from "@/lib/auth"
-import type { PipedreamActionToolConfig } from "@/types/tools"
 
 /**
  * Test Execution Endpoint for Pipedream Actions
@@ -30,7 +28,6 @@ export async function POST(request: Request) {
     slug,
     app,
     appName,
-    appImgSrc,
     appFieldName,
     accountId,
     actionKey,
@@ -40,7 +37,6 @@ export async function POST(request: Request) {
     slug: string
     app: string
     appName: string
-    appImgSrc?: string
     appFieldName: string
     accountId: string
     actionKey: string

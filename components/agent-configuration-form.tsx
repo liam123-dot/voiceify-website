@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
@@ -141,14 +140,6 @@ interface AgentConfigurationFormProps {
   initialConfig?: AgentConfiguration
   mode?: 'configuration' | 'models'
 }
-
-const VOICE_OPTIONS = [
-  { value: 'alloy', label: 'Alloy', description: 'Neutral, balanced voice' },
-  { value: 'echo', label: 'Echo', description: 'Warm, friendly voice' },
-  { value: 'shimmer', label: 'Shimmer', description: 'Bright, upbeat voice' },
-  { value: 'coral', label: 'Coral', description: 'Calm, soothing voice' },
-  { value: 'verse', label: 'Verse', description: 'Professional voice' },
-] as const
 
 export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'configuration' }: AgentConfigurationFormProps) {
   const [isSaving, setIsSaving] = useState(false)
@@ -323,7 +314,6 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
 
   const llmTemperature = form.watch('llmTemperature')
   const selectedTTSModelId = form.watch('ttsModelId')
-  const firstMessageType = form.watch('firstMessageType')
   
   // Get available voices for the selected TTS model
   const availableVoices = useMemo(() => {

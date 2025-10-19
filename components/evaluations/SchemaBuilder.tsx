@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -51,15 +51,7 @@ export function SchemaBuilder({ value, onChange }: SchemaBuilderProps) {
   const [properties, setProperties] = useState<SchemaProperty[]>([])
   const [nextId, setNextId] = useState(1)
 
-  // Parse JSON schema into our property structure
-  useEffect(() => {
-    if (value && value.properties) {
-      const parsed = parseSchemaToProperties(value)
-      setProperties(parsed)
-    }
-  }, []) // Only run once on mount
-
-  const parseSchemaToProperties = (schema: JSONSchema | JSONSchemaProperty): SchemaProperty[] => {
+  const parseSchemaToProperties = useCallback((schema: JSONSchema | JSONSchemaProperty): SchemaProperty[] => {
     if (!schema.properties) return []
 
     return Object.entries(schema.properties).map(([name, prop]) => {
@@ -96,7 +88,15 @@ export function SchemaBuilder({ value, onChange }: SchemaBuilderProps) {
 
       return property
     })
-  }
+  }, [])
+
+  // Parse JSON schema into our property structure
+  useEffect(() => {
+    if (value && value.properties) {
+      const parsed = parseSchemaToProperties(value)
+      setProperties(parsed)
+    }
+  }, [parseSchemaToProperties, value]) // Only run once on mount
 
   // Convert our property structure to JSON schema
   const propertiesToSchema = (props: SchemaProperty[]): JSONSchema => {

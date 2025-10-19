@@ -13,13 +13,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import type { Call, CallStatus, CallEventType } from '@/types/call-events'
-import { 
-  PhoneIcon, 
-  ClockIcon, 
-  MessageSquareIcon, 
-  CoinsIcon, 
-  DollarSignIcon, 
-  InfoIcon, 
+import {
+  PhoneIcon,
+  MessageSquareIcon,
+  CoinsIcon,
+  DollarSignIcon,
+  InfoIcon,
   BarChart3Icon,
   ActivityIcon,
   ArrowRightIcon,

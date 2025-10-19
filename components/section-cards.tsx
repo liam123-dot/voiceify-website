@@ -1,13 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
-import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-react"
 import { subDays, subHours, isAfter } from "date-fns"
 
-import { Badge } from "@/components/ui/badge"
 import {
   Card,
-  CardAction,
   CardDescription,
   CardHeader,
   CardTitle,

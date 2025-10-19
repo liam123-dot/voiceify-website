@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { IconDeviceMobile, IconAlertCircle, IconLoader2, IconTrash, IconPlus } from "@tabler/icons-react"
@@ -42,18 +42,14 @@ export function AgentDeployment({ agentId, slug }: AgentDeploymentProps) {
   const [loading, setLoading] = useState(true)
   const [configuring, setConfiguring] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadPhoneNumbers()
-  }, [agentId])
-
-  async function loadPhoneNumbers() {
+  const loadPhoneNumbers = useCallback(async () => {
     try {
       const response = await fetch(`/api/${slug}/phone-numbers`)
       const data = await response.json()
 
       if (response.ok) {
         setPhoneNumbers(data.phoneNumbers || [])
-        
+
         // Find all numbers assigned to this agent
         const assigned = data.phoneNumbers?.filter((num: PhoneNumber) => num.agent_id === agentId) || []
         setAssignedNumbers(assigned)
@@ -63,7 +59,11 @@ export function AgentDeployment({ agentId, slug }: AgentDeploymentProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [agentId, slug])
+
+  useEffect(() => {
+    loadPhoneNumbers()
+  }, [loadPhoneNumbers])
 
   async function handleAssignNumber() {
     if (!selectedNumberId) {
