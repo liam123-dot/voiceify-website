@@ -10,7 +10,7 @@ type AgentWithTools = {
   rules: unknown;
   created_at: string;
   updated_at: string;
-  hasKnowledgeBase: boolean;
+  knowledgeBaseIds: string[];
   tools: Array<{
     id: string;
     name: string;
@@ -52,7 +52,7 @@ async function fetchAgentsBatch(
     // Fetch all knowledge base assignments for these agents
     supabase
       .from('agent_knowledge_bases')
-      .select('agent_id')
+      .select('agent_id, knowledge_base_id')
       .in('agent_id', agentIds)
   ]);
 
@@ -60,10 +60,14 @@ async function fetchAgentsBatch(
     throw new Error(agentsResult.error.message);
   }
 
-  // Create a Set of agent IDs that have knowledge bases
-  const agentIdsWithKnowledgeBases = new Set(
-    (knowledgeBaseAssignments.data || []).map(akb => akb.agent_id)
-  );
+  // Create a map of agent IDs to their knowledge base IDs
+  const agentKnowledgeBasesMap = new Map<string, string[]>();
+  (knowledgeBaseAssignments.data || []).forEach(akb => {
+    if (!agentKnowledgeBasesMap.has(akb.agent_id)) {
+      agentKnowledgeBasesMap.set(akb.agent_id, []);
+    }
+    agentKnowledgeBasesMap.get(akb.agent_id)!.push(akb.knowledge_base_id);
+  });
 
   // Fetch tools for all agents in parallel
   const toolsResults = await Promise.all(
@@ -79,7 +83,7 @@ async function fetchAgentsBatch(
     if (toolsResult.success) {
       agentsMap.set(agent.id, {
         ...agent,
-        hasKnowledgeBase: agentIdsWithKnowledgeBases.has(agent.id),
+        knowledgeBaseIds: agentKnowledgeBasesMap.get(agent.id) || [],
         tools: toolsResult.tools || []
       });
     }
