@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getAuthSession } from '@/lib/auth'
 import ragie from '@/lib/ragie/client'
+import { createKnowledgeBaseItem, insertKnowledgeBaseItem } from '@/lib/knowledge-base/items'
 
 export const dynamic = 'force-dynamic'
 
@@ -158,145 +159,39 @@ export async function POST(
       return NextResponse.json({ error: 'Type and name are required' }, { status: 400 })
     }
 
-    let ragieDocumentId: string | null = null
-    const itemData: Record<string, unknown> = {
-      knowledge_base_id: knowledgeBaseId,
-      name,
-      type,
-      status: 'processing',
-    }
-
-    // Handle different types
+    // Validate type-specific required fields
     if (type === 'url') {
       const url = formData.get('url') as string
       if (!url) {
         return NextResponse.json({ error: 'URL is required for url type' }, { status: 400 })
-      }
-
-      itemData.url = url
-
-      // Index with Ragie (partition by organization, filter by knowledge base)
-      try {
-        const metadata: Record<string, string> = {}
-        if (name) metadata.name = name
-        if (knowledgeBaseId) metadata.knowledge_base_id = knowledgeBaseId
-        
-        const ragieResponse = await ragie.documents.createDocumentFromUrl({
-          url,
-          partition: organizationId,
-          metadata,
-        })
-
-        if (ragieResponse.id) {
-          ragieDocumentId = ragieResponse.id
-          itemData.ragie_document_id = ragieDocumentId
-        }
-      } catch (error) {
-        console.error('Error indexing URL with Ragie:', error)
-        itemData.status = 'failed'
-        itemData.sync_error = 'Failed to index with Ragie'
       }
     } else if (type === 'text') {
       const textContent = formData.get('text_content') as string
       if (!textContent) {
         return NextResponse.json({ error: 'Text content is required for text type' }, { status: 400 })
       }
-
-      itemData.text_content = textContent
-
-      // Index with Ragie (partition by organization, filter by knowledge base)
-      try {
-        const metadata: Record<string, string> = {}
-        if (name) metadata.name = name
-        if (knowledgeBaseId) metadata.knowledge_base_id = knowledgeBaseId
-        
-        const ragieResponse = await ragie.documents.createRaw({
-          data: textContent,
-          partition: organizationId,
-          metadata,
-        })
-
-        if (ragieResponse.id) {
-          ragieDocumentId = ragieResponse.id
-          itemData.ragie_document_id = ragieDocumentId
-        }
-      } catch (error) {
-        console.error('Error indexing text with Ragie:', error)
-        itemData.status = 'failed'
-        itemData.sync_error = 'Failed to index with Ragie'
-      }
     } else if (type === 'file') {
       const file = formData.get('file') as File
       if (!file) {
         return NextResponse.json({ error: 'File is required for file type' }, { status: 400 })
       }
-
-      // Generate file path
-      const fileExtension = file.name.split('.').pop()
-      const fileId = crypto.randomUUID()
-      const filePath = `${organizationId}/${knowledgeBaseId}/${fileId}.${fileExtension}`
-
-      // Upload to Supabase Storage
-      const fileBuffer = await file.arrayBuffer()
-      const { error: uploadError } = await supabase.storage
-        .from('knowledge-base-files')
-        .upload(filePath, fileBuffer, {
-          contentType: file.type,
-          upsert: false,
-        })
-
-      if (uploadError) {
-        console.error('Error uploading file to Supabase:', uploadError)
-        return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
-      }
-
-      itemData.file_location = filePath
-      itemData.file_type = file.type
-      itemData.file_size = file.size
-
-      // Get signed URL for Ragie (valid for 1 hour)
-      await supabase.storage
-        .from('knowledge-base-files')
-        .createSignedUrl(filePath, 3600)
-
-      // Index with Ragie using the file directly (partition by organization, filter by knowledge base)
-      try {
-        const metadata: Record<string, string> = {}
-        if (name) metadata.name = name
-        if (knowledgeBaseId) metadata.knowledge_base_id = knowledgeBaseId
-        if (file.type) metadata.file_type = file.type
-        
-        const ragieResponse = await ragie.documents.create({
-          file: file,
-          partition: organizationId,
-          metadata,
-          mode: 'fast',
-        })
-
-        if (ragieResponse.id) {
-          ragieDocumentId = ragieResponse.id
-          itemData.ragie_document_id = ragieDocumentId
-        }
-      } catch (error) {
-        console.error('Error indexing file with Ragie:', error)
-        itemData.status = 'failed'
-        itemData.sync_error = 'Failed to index with Ragie'
-      }
     } else {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
     }
 
-    // Insert the item into the database
-    const { data: item, error: insertError } = await supabase
-      .from('knowledge_base_items')
-      .insert(itemData)
-      .select('*')
-      .single()
+    // Create item data and index with Ragie
+    const { itemData } = await createKnowledgeBaseItem({
+      knowledgeBaseId,
+      organizationId,
+      name,
+      url: formData.get('url') as string | undefined,
+      text_content: formData.get('text_content') as string | undefined,
+      file: formData.get('file') as File | undefined,
+      type: type as 'url' | 'text' | 'file',
+    })
 
-    if (insertError) {
-      console.error('Error creating knowledge base item:', insertError)
-      return NextResponse.json({ error: 'Failed to create item' }, { status: 500 })
-    }
+    // Insert the item into the database
+    const item = await insertKnowledgeBaseItem(itemData)
 
     return NextResponse.json({ item }, { status: 201 })
   } catch (error) {
