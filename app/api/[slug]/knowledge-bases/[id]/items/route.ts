@@ -238,7 +238,7 @@ export async function POST(
 
       // Upload to Supabase Storage
       const fileBuffer = await file.arrayBuffer()
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('knowledge-base-files')
         .upload(filePath, fileBuffer, {
           contentType: file.type,
@@ -255,7 +255,7 @@ export async function POST(
       itemData.file_size = file.size
 
       // Get signed URL for Ragie (valid for 1 hour)
-      const { data: signedUrlData } = await supabase.storage
+      await supabase.storage
         .from('knowledge-base-files')
         .createSignedUrl(filePath, 3600)
 

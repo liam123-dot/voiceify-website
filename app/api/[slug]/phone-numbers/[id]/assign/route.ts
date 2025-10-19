@@ -2,16 +2,16 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthSession } from '@/lib/auth'
 import { SipClient } from 'livekit-server-sdk'
-import { RoomConfiguration, RoomAgentDispatch } from '@livekit/protocol'
+import { RoomConfiguration } from '@livekit/protocol'
 
 type RouteContext = {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string; id: string }>
 }
 
 export async function POST(request: Request, context: RouteContext) {
   try {
-    const { id: phoneNumberId } = await context.params
-    const { user, organizationId } = await getAuthSession()
+    const { slug, id: phoneNumberId } = await context.params
+    const { user, organizationId } = await getAuthSession(slug)
 
     if (!user || !organizationId) {
       return NextResponse.json(
@@ -139,7 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({ phoneNumber: updatedPhoneNumber })
   } catch (error) {
-    console.error('Error in /api/phone-numbers/[id]/assign POST:', error)
+    console.error('Error in /api/[slug]/phone-numbers/[id]/assign POST:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -149,8 +149,8 @@ export async function POST(request: Request, context: RouteContext) {
 
 export async function DELETE(request: Request, context: RouteContext) {
   try {
-    const { id: phoneNumberId } = await context.params
-    const { user, organizationId } = await getAuthSession()
+    const { slug, id: phoneNumberId } = await context.params
+    const { user, organizationId } = await getAuthSession(slug)
 
     if (!user || !organizationId) {
       return NextResponse.json(
@@ -198,7 +198,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     return NextResponse.json({ phoneNumber: updatedPhoneNumber })
   } catch (error) {
-    console.error('Error in /api/phone-numbers/[id]/assign DELETE:', error)
+    console.error('Error in /api/[slug]/phone-numbers/[id]/assign DELETE:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

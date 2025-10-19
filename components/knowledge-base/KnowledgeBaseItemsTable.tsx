@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { IconLoader2, IconTrash, IconFile, IconLink, IconFileText, IconDatabase } from "@tabler/icons-react"
+import { IconLoader2, IconTrash, IconFile, IconLink, IconFileText, IconDatabase, IconExternalLink } from "@tabler/icons-react"
+import Link from 'next/link'
 import {
   Table,
   TableBody,
@@ -31,6 +32,24 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+import { Skeleton } from '@/components/ui/skeleton'
+import { AddItemDialog } from './AddItemDialog'
 import { toast } from "sonner"
 
 interface KnowledgeBaseItem {
@@ -44,6 +63,14 @@ interface KnowledgeBaseItem {
   created_at: string
 }
 
+type KnowledgeBase = {
+  id: string
+  name: string
+  description?: string | null
+  created_at: string
+  updated_at: string
+}
+
 interface KnowledgeBaseItemsTableProps {
   slug: string
   knowledgeBaseId: string
@@ -53,8 +80,19 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
   const [itemToDelete, setItemToDelete] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
+  // Fetch knowledge base details
+  const { data: knowledgeBase, isLoading: isLoadingKB } = useQuery<KnowledgeBase | undefined>({
+    queryKey: ['knowledge-base', slug, knowledgeBaseId],
+    queryFn: async () => {
+      const response = await fetch(`/api/${slug}/knowledge-bases/${knowledgeBaseId}`)
+      if (!response.ok) return undefined
+      const data = await response.json()
+      return data.knowledgeBase as KnowledgeBase
+    },
+  })
+
   // Fetch knowledge base items
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = [], isLoading: isLoadingItems } = useQuery({
     queryKey: ['knowledge-base-items', slug, knowledgeBaseId],
     queryFn: async () => {
       const response = await fetch(`/api/${slug}/knowledge-bases/${knowledgeBaseId}/items`)
@@ -74,6 +112,10 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
       return hasProcessingItems ? 5000 : false
     },
   })
+
+  const handleItemAdded = () => {
+    queryClient.invalidateQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
+  }
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -107,11 +149,24 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'indexed':
-        return <Badge variant="default" className="bg-green-500">Indexed</Badge>
+        return (
+          <Badge variant="default" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+            Indexed
+          </Badge>
+        )
       case 'processing':
-        return <Badge variant="default" className="bg-blue-500">Processing</Badge>
+        return (
+          <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20">
+            <IconLoader2 className="h-3 w-3 mr-1 animate-spin" />
+            Processing
+          </Badge>
+        )
       case 'pending':
-        return <Badge variant="secondary">Pending</Badge>
+        return (
+          <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
+            Pending
+          </Badge>
+        )
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>
       default:
@@ -122,85 +177,130 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'file':
-        return <IconFile className="h-4 w-4" />
+        return <IconFile className="h-4 w-4 text-muted-foreground" />
       case 'url':
-        return <IconLink className="h-4 w-4" />
+        return <IconLink className="h-4 w-4 text-muted-foreground" />
       case 'text':
-        return <IconFileText className="h-4 w-4" />
+        return <IconFileText className="h-4 w-4 text-muted-foreground" />
       default:
         return null
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (items.length === 0) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <IconDatabase />
-          </EmptyMedia>
-          <EmptyTitle>No Items Yet</EmptyTitle>
-          <EmptyDescription>
-            This knowledge base is empty. Add files, URLs, or text content to get started.
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    )
-  }
+  const isLoading = isLoadingKB || isLoadingItems
 
   return (
-    <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((item: KnowledgeBaseItem) => (
-              <TableRow key={item.id}>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    {getTypeIcon(item.type)}
-                    <span className="truncate max-w-md">{item.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="capitalize">
-                    {item.type}
-                  </Badge>
-                </TableCell>
-                <TableCell>{getStatusBadge(item.status)}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {new Date(item.created_at).toLocaleDateString()}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setItemToDelete(item.id)}
-                  >
-                    <IconTrash className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+    <div className="space-y-6">
+
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle className="text-xl">
+            {isLoadingKB ? (
+              <Skeleton className="h-6 w-56" />
+            ) : (
+              knowledgeBase?.name ?? 'Knowledge Base'
+            )}
+          </CardTitle>
+          <CardDescription>
+            {isLoadingKB
+              ? null
+              : knowledgeBase?.description || 'Add and manage documents for this knowledge base.'}
+          </CardDescription>
+          <CardAction>
+            <AddItemDialog 
+              slug={slug} 
+              knowledgeBaseId={knowledgeBaseId} 
+              onItemAdded={handleItemAdded}
+            />
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {isLoadingItems ? (
+            <div className="flex items-center justify-center py-12">
+              <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : items.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <IconDatabase />
+                </EmptyMedia>
+                <EmptyTitle>No Items Yet</EmptyTitle>
+                <EmptyDescription>
+                  This knowledge base is empty. Add files, URLs, or text content to get started.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40%]">Name</TableHead>
+                    <TableHead className="w-[15%]">Type</TableHead>
+                    <TableHead className="w-[20%]">Status</TableHead>
+                    <TableHead className="w-[15%]">Created</TableHead>
+                    <TableHead className="w-[10%] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item: KnowledgeBaseItem) => (
+                    <TableRow key={item.id} className="group">
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0">
+                            {getTypeIcon(item.type)}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="truncate text-sm font-medium">
+                              {item.name}
+                            </span>
+                            {item.url && (
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-muted-foreground hover:text-primary truncate flex items-center gap-1 mt-0.5"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span className="truncate">{item.url}</span>
+                                <IconExternalLink className="h-3 w-3 flex-shrink-0" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize text-xs">
+                          {item.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(item.status)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(item.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setItemToDelete(item.id)}
+                        >
+                          <IconTrash className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
         <AlertDialogContent>
@@ -219,7 +319,7 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   )
 }
 

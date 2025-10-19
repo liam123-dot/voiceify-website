@@ -9,13 +9,12 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const { user, organizationId } = await getAuthSession()
+    const { slug } = await params
+    const { user, organizationId } = await getAuthSession(slug)
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const { slug } = await params
 
     // Get pagination and filter parameters from query string
     const { searchParams } = new URL(request.url)

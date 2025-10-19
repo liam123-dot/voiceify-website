@@ -13,9 +13,14 @@ interface TwilioIncomingPhoneNumber {
   [key: string]: unknown
 }
 
-export async function POST(request: Request) {
+type RouteContext = {
+  params: Promise<{ slug: string }>
+}
+
+export async function POST(request: Request, context: RouteContext) {
   try {
-    const { user, organizationId } = await getAuthSession()
+    const { slug } = await context.params
+    const { user, organizationId } = await getAuthSession(slug)
 
     if (!user || !organizationId) {
       return NextResponse.json(
@@ -72,11 +77,10 @@ export async function POST(request: Request) {
 
       const data = await response.json()
       
-      // Get existing phone numbers from database
+      // Get existing phone numbers from database (check globally, not just this org)
       const { data: existingNumbers, error: existingNumbersError } = await supabase
         .from('phone_numbers')
         .select('phone_number')
-        .eq('organization_id', organizationId)
 
       if (existingNumbersError) {
         console.error('Error fetching existing phone numbers:', existingNumbersError)
@@ -121,7 +125,7 @@ export async function POST(request: Request) {
       )
     }
   } catch (error) {
-    console.error('Error in /api/phone-numbers/twilio/available POST:', error)
+    console.error('Error in /api/[slug]/phone-numbers/twilio/available POST:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

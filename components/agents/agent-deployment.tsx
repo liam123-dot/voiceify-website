@@ -31,9 +31,10 @@ interface PhoneNumber {
 
 interface AgentDeploymentProps {
   agentId: string
+  slug: string
 }
 
-export function AgentDeployment({ agentId }: AgentDeploymentProps) {
+export function AgentDeployment({ agentId, slug }: AgentDeploymentProps) {
   const router = useRouter()
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([])
   const [selectedNumberId, setSelectedNumberId] = useState<string>("")
@@ -47,7 +48,7 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
 
   async function loadPhoneNumbers() {
     try {
-      const response = await fetch('/api/phone-numbers')
+      const response = await fetch(`/api/${slug}/phone-numbers`)
       const data = await response.json()
 
       if (response.ok) {
@@ -70,10 +71,23 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
       return
     }
 
+    // Find the number to assign
+    const numberToAssign = phoneNumbers.find(num => num.id === selectedNumberId)
+    if (!numberToAssign) return
+
+    // Optimistically update the UI
+    const optimisticNumber = { ...numberToAssign, agent_id: agentId }
+    setAssignedNumbers(prev => [...prev, optimisticNumber])
+    setPhoneNumbers(prev => prev.map(num => 
+      num.id === selectedNumberId ? optimisticNumber : num
+    ))
     setConfiguring(selectedNumberId)
+    const previousSelectedId = selectedNumberId
+    setSelectedNumberId("")
+
     try {
       // Step 1: Assign the number to the agent
-      const assignResponse = await fetch(`/api/phone-numbers/${selectedNumberId}/assign`, {
+      const assignResponse = await fetch(`/api/${slug}/phone-numbers/${previousSelectedId}/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -88,7 +102,7 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
       }
 
       // Step 2: Configure the webhook with the provider
-      const webhookResponse = await fetch(`/api/phone-numbers/${selectedNumberId}/configure-webhook`, {
+      const webhookResponse = await fetch(`/api/${slug}/phone-numbers/${previousSelectedId}/configure-webhook`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +113,7 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
 
       if (!webhookResponse.ok) {
         // Unassign if webhook configuration fails
-        await fetch(`/api/phone-numbers/${selectedNumberId}/assign`, {
+        await fetch(`/api/${slug}/phone-numbers/${previousSelectedId}/assign`, {
           method: 'DELETE',
         })
         throw new Error(webhookData.error || 'Failed to configure webhook')
@@ -109,11 +123,15 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
         description: `${assignData.phoneNumber.phone_number} is now connected to this agent.`,
       })
 
-      // Reset selection and reload
-      setSelectedNumberId("")
-      await loadPhoneNumbers()
       router.refresh()
     } catch (error) {
+      // Revert optimistic update
+      setAssignedNumbers(prev => prev.filter(num => num.id !== previousSelectedId))
+      setPhoneNumbers(prev => prev.map(num => 
+        num.id === previousSelectedId ? numberToAssign : num
+      ))
+      setSelectedNumberId(previousSelectedId)
+
       const errorMessage = error instanceof Error ? error.message : "Failed to configure phone number"
       toast.error("Configuration failed", {
         description: errorMessage,
@@ -125,9 +143,20 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
   }
 
   async function handleUnassignNumber(numberId: string, phoneNumber: string) {
+    // Find the number to unassign
+    const numberToUnassign = assignedNumbers.find(num => num.id === numberId)
+    if (!numberToUnassign) return
+
+    // Optimistically update the UI
+    const optimisticNumber = { ...numberToUnassign, agent_id: null }
+    setAssignedNumbers(prev => prev.filter(num => num.id !== numberId))
+    setPhoneNumbers(prev => prev.map(num => 
+      num.id === numberId ? optimisticNumber : num
+    ))
     setConfiguring(numberId)
+
     try {
-      const response = await fetch(`/api/phone-numbers/${numberId}/assign`, {
+      const response = await fetch(`/api/${slug}/phone-numbers/${numberId}/assign`, {
         method: 'DELETE',
       })
 
@@ -141,9 +170,14 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
         description: `${phoneNumber} is no longer connected to this agent.`,
       })
 
-      await loadPhoneNumbers()
       router.refresh()
     } catch (error) {
+      // Revert optimistic update
+      setAssignedNumbers(prev => [...prev, numberToUnassign])
+      setPhoneNumbers(prev => prev.map(num => 
+        num.id === numberId ? numberToUnassign : num
+      ))
+
       const errorMessage = error instanceof Error ? error.message : "Failed to remove phone number"
       toast.error("Removal failed", {
         description: errorMessage,
@@ -221,7 +255,7 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
               <IconAlertCircle className="h-4 w-4" />
               <AlertDescription className="flex items-center justify-between">
                 <span>You don&apos;t have any phone numbers yet. Add one to get started.</span>
-                <AddPhoneNumberButton onSuccess={loadPhoneNumbers} />
+                <AddPhoneNumberButton slug={slug} onSuccess={loadPhoneNumbers} />
               </AlertDescription>
             </Alert>
           ) : availableNumbers.length === 0 ? (
@@ -229,7 +263,7 @@ export function AgentDeployment({ agentId }: AgentDeploymentProps) {
               <IconAlertCircle className="h-4 w-4" />
               <AlertDescription className="flex items-center justify-between">
                 <span>All your phone numbers are assigned. Add more to continue.</span>
-                <AddPhoneNumberButton onSuccess={loadPhoneNumbers} />
+                <AddPhoneNumberButton slug={slug} onSuccess={loadPhoneNumbers} />
               </AlertDescription>
             </Alert>
           ) : (

@@ -129,7 +129,6 @@ export async function POST(request: Request) {
     
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Connecting you to an agent.</Say>
   <Dial>
     <Sip${livekitUsername ? ` username="${livekitUsername}"` : ''}${process.env.LIVEKIT_SIP_PASSWORD ? ` password="${process.env.LIVEKIT_SIP_PASSWORD}"` : ''}>
       <Header name="X-Agent-ID" value="${agent.id}"/>

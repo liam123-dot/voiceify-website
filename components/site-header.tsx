@@ -24,9 +24,11 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
   const [agentNames, setAgentNames] = useState<Record<string, string>>({})
   const [toolNames, setToolNames] = useState<Record<string, string>>({})
   const [knowledgeBaseNames, setKnowledgeBaseNames] = useState<Record<string, string>>({})
+  const [evaluationNames, setEvaluationNames] = useState<Record<string, string>>({})
   const [loadingAgents, setLoadingAgents] = useState<Record<string, boolean>>({})
   const [loadingTools, setLoadingTools] = useState<Record<string, boolean>>({})
   const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState<Record<string, boolean>>({})
+  const [loadingEvaluations, setLoadingEvaluations] = useState<Record<string, boolean>>({})
 
   // Fetch agent or tool name if we're on their detail pages
   useEffect(() => {
@@ -104,7 +106,31 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
           })
       }
     }
-  }, [pathname, agentNames, toolNames, knowledgeBaseNames, loadingAgents, loadingTools, loadingKnowledgeBases, slug])
+    
+    // Check if we're on an evaluation detail page (e.g., /[slug]/evaluations/[id])
+    if (segments.length >= 3 && segments[1] === 'evaluations' && slug) {
+      const evaluationId = segments[2]
+
+      if (uuidRegex.test(evaluationId) && !evaluationNames[evaluationId] && !loadingEvaluations[evaluationId]) {
+        // Set loading state
+        setLoadingEvaluations(prev => ({ ...prev, [evaluationId]: true }))
+
+        // Fetch the evaluation name
+        fetch(`/api/${slug}/evaluations/${evaluationId}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.evaluation) {
+              setEvaluationNames(prev => ({ ...prev, [evaluationId]: data.evaluation.name }))
+            }
+            setLoadingEvaluations(prev => ({ ...prev, [evaluationId]: false }))
+          })
+          .catch(err => {
+            console.error('Error fetching evaluation:', err)
+            setLoadingEvaluations(prev => ({ ...prev, [evaluationId]: false }))
+          })
+      }
+    }
+  }, [pathname, agentNames, toolNames, knowledgeBaseNames, evaluationNames, loadingAgents, loadingTools, loadingKnowledgeBases, loadingEvaluations, slug])
 
   // Generate breadcrumb items from pathname
   const getBreadcrumbItems = (path: string) => {
@@ -160,6 +186,16 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
         if (knowledgeBaseNames[segment]) {
           label = knowledgeBaseNames[segment]
         } else if (loadingKnowledgeBases[segment]) {
+          isLoading = true
+          label = '' // Will be replaced by skeleton
+        }
+      }
+      
+      // Check if this is an evaluation ID
+      if (segments[index - 1] === 'evaluations' && uuidRegex.test(segment)) {
+        if (evaluationNames[segment]) {
+          label = evaluationNames[segment]
+        } else if (loadingEvaluations[segment]) {
           isLoading = true
           label = '' // Will be replaced by skeleton
         }

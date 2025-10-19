@@ -5,13 +5,13 @@ import { SipClient } from 'livekit-server-sdk'
 import { ListUpdate } from '@livekit/protocol'
 
 type RouteContext = {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string; id: string }>
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
   try {
-    const { id: phoneNumberId } = await context.params
-    const { user, organizationId } = await getAuthSession()
+    const { slug, id: phoneNumberId } = await context.params
+    const { user, organizationId } = await getAuthSession(slug)
 
     if (!user || !organizationId) {
       return NextResponse.json(
@@ -151,7 +151,7 @@ export async function DELETE(request: Request, context: RouteContext) {
       message: 'Phone number deleted successfully' 
     })
   } catch (error) {
-    console.error('Error in /api/phone-numbers/[id] DELETE:', error)
+    console.error('Error in /api/[slug]/phone-numbers/[id] DELETE:', error)
     return NextResponse.json(
       { 
         error: error instanceof Error ? error.message : 'Internal server error' 

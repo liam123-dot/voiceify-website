@@ -105,9 +105,16 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
 
   // Assign a tool to the agent
   const handleAssignTool = async (toolId: string) => {
-    try {
-      setAssigningToolId(toolId)
+    // Find the tool to assign
+    const toolToAssign = availableTools.find(t => t.id === toolId)
+    if (!toolToAssign) return
 
+    // Optimistically update the UI
+    setAvailableTools(prev => prev.filter(t => t.id !== toolId))
+    setAssignedTools(prev => [...prev, toolToAssign])
+    setAssigningToolId(toolId)
+
+    try {
       const response = await fetch(`/api/${slug}/agents/${agentId}/tools/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,13 +124,18 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
       const data = await response.json()
 
       if (!data.success) {
+        // Revert optimistic update
+        setAssignedTools(prev => prev.filter(t => t.id !== toolId))
+        setAvailableTools(prev => [...prev, toolToAssign])
         toast.error(data.error || 'Failed to assign tool')
         return
       }
 
       toast.success('Tool assigned successfully')
-      fetchTools() // Refresh the lists
     } catch (error) {
+      // Revert optimistic update
+      setAssignedTools(prev => prev.filter(t => t.id !== toolId))
+      setAvailableTools(prev => [...prev, toolToAssign])
       console.error('Error assigning tool:', error)
       toast.error('Failed to assign tool')
     } finally {
@@ -133,9 +145,16 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
 
   // Unassign a tool from the agent
   const handleUnassignTool = async (toolId: string) => {
-    try {
-      setUnassigningToolId(toolId)
+    // Find the tool to unassign
+    const toolToUnassign = assignedTools.find(t => t.id === toolId)
+    if (!toolToUnassign) return
 
+    // Optimistically update the UI
+    setAssignedTools(prev => prev.filter(t => t.id !== toolId))
+    setAvailableTools(prev => [...prev, toolToUnassign])
+    setUnassigningToolId(toolId)
+
+    try {
       const response = await fetch(`/api/${slug}/agents/${agentId}/tools/unassign`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -145,13 +164,18 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
       const data = await response.json()
 
       if (!data.success) {
+        // Revert optimistic update
+        setAvailableTools(prev => prev.filter(t => t.id !== toolId))
+        setAssignedTools(prev => [...prev, toolToUnassign])
         toast.error(data.error || 'Failed to unassign tool')
         return
       }
 
       toast.success('Tool unassigned successfully')
-      fetchTools() // Refresh the lists
     } catch (error) {
+      // Revert optimistic update
+      setAvailableTools(prev => prev.filter(t => t.id !== toolId))
+      setAssignedTools(prev => [...prev, toolToUnassign])
       console.error('Error unassigning tool:', error)
       toast.error('Failed to unassign tool')
     } finally {

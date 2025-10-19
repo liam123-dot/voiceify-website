@@ -10,7 +10,7 @@ type PageProps = {
 
 export default async function AgentSettingsPage({ params }: PageProps) {
   const { id, slug } = await params
-  const { user, organizationId } = await getAuthSession()
+  const { user, organizationId } = await getAuthSession(slug)
 
   if (!user || !organizationId) {
     notFound()

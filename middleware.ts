@@ -10,6 +10,7 @@ export default authkitMiddleware({
       '/api/calls/incoming',
       '/api/calls/incoming/refer',
       '/api/calls/incoming/transfer-no-answer',
+      '/api/calls/incoming/callback',
       '/api/callback',
       // Agent API routes (called by LiveKit agent)
       '/api/agents/:path*/calls',

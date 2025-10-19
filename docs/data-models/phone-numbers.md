@@ -207,7 +207,7 @@ CREATE POLICY phone_numbers_delete_policy ON phone_numbers
 
 ### Adding a Phone Number
 ```typescript
-const response = await fetch('/api/phone-numbers', {
+const response = await fetch('/api/{slug}/phone-numbers', {
   method: 'POST',
   body: JSON.stringify({
     provider: 'twilio',
@@ -225,7 +225,7 @@ const response = await fetch('/api/phone-numbers', {
 
 ### Fetching Available Numbers from Twilio
 ```typescript
-const response = await fetch('/api/phone-numbers/twilio/available', {
+const response = await fetch('/api/{slug}/phone-numbers/twilio/available', {
   method: 'POST',
   body: JSON.stringify({
     accountSid: 'ACxxx...',

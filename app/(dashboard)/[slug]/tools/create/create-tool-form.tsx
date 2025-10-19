@@ -198,6 +198,7 @@ export function CreateToolForm({ slug }: CreateToolFormProps) {
                     : undefined
                 }
                 onChange={handleToolConfigChange}
+                slug={slug}
               />
             )}
 

@@ -75,9 +75,16 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
 
   // Assign a knowledge base to the agent
   const handleAssignKnowledgeBase = async (knowledgeBaseId: string) => {
-    try {
-      setAssigningKbId(knowledgeBaseId)
+    // Find the knowledge base to assign
+    const kbToAssign = availableKnowledgeBases.find(kb => kb.id === knowledgeBaseId)
+    if (!kbToAssign) return
 
+    // Optimistically update the UI
+    setAvailableKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+    setAssignedKnowledgeBases(prev => [...prev, kbToAssign])
+    setAssigningKbId(knowledgeBaseId)
+
+    try {
       const response = await fetch(`/api/${slug}/agents/${agentId}/knowledge-bases/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,13 +94,18 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
       const data = await response.json()
 
       if (!data.success) {
+        // Revert optimistic update
+        setAssignedKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+        setAvailableKnowledgeBases(prev => [...prev, kbToAssign])
         toast.error(data.error || 'Failed to assign knowledge base')
         return
       }
 
       toast.success('Knowledge base assigned successfully')
-      fetchKnowledgeBases() // Refresh the lists
     } catch (error) {
+      // Revert optimistic update
+      setAssignedKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+      setAvailableKnowledgeBases(prev => [...prev, kbToAssign])
       console.error('Error assigning knowledge base:', error)
       toast.error('Failed to assign knowledge base')
     } finally {
@@ -103,9 +115,16 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
 
   // Unassign a knowledge base from the agent
   const handleUnassignKnowledgeBase = async (knowledgeBaseId: string) => {
-    try {
-      setUnassigningKbId(knowledgeBaseId)
+    // Find the knowledge base to unassign
+    const kbToUnassign = assignedKnowledgeBases.find(kb => kb.id === knowledgeBaseId)
+    if (!kbToUnassign) return
 
+    // Optimistically update the UI
+    setAssignedKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+    setAvailableKnowledgeBases(prev => [...prev, kbToUnassign])
+    setUnassigningKbId(knowledgeBaseId)
+
+    try {
       const response = await fetch(`/api/${slug}/agents/${agentId}/knowledge-bases/unassign`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -115,13 +134,18 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
       const data = await response.json()
 
       if (!data.success) {
+        // Revert optimistic update
+        setAvailableKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+        setAssignedKnowledgeBases(prev => [...prev, kbToUnassign])
         toast.error(data.error || 'Failed to unassign knowledge base')
         return
       }
 
       toast.success('Knowledge base unassigned successfully')
-      fetchKnowledgeBases() // Refresh the lists
     } catch (error) {
+      // Revert optimistic update
+      setAvailableKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+      setAssignedKnowledgeBases(prev => [...prev, kbToUnassign])
       console.error('Error unassigning knowledge base:', error)
       toast.error('Failed to unassign knowledge base')
     } finally {

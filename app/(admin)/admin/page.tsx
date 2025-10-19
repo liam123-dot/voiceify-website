@@ -1,24 +1,57 @@
-import { withAuth } from "@workos-inc/authkit-nextjs"
+import { requireAdmin } from "@/app/(admin)/lib/admin-auth"
+import { WorkOS } from '@workos-inc/node'
+import { createServiceClient } from "@/lib/supabase/server"
+import { AdminDashboardContainer } from "@/components/dashboard/admin-dashboard-container"
 
 export default async function AdminPage() {
-  const { user } = await withAuth();
+  const { user } = await requireAdmin()
+
+  // Initialize WorkOS client
+  const workos = new WorkOS(process.env.WORKOS_API_KEY!)
+
+  // Fetch all organizations from our database to get slugs
+  const supabase = await createServiceClient()
+  const { data: dbOrgs, error: dbError } = await supabase
+    .from('organisations')
+    .select('id, external_id, slug')
+
+  // Fetch organization details from WorkOS
+  type WorkOSOrg = Awaited<ReturnType<typeof workos.organizations.listOrganizations>>['data'][number]
+  type OrgWithSlug = WorkOSOrg & { slug?: string }
+  let organizations: Array<{ id: string; slug: string; name: string }> = []
+
+  if (!dbError) {
+    try {
+      const result = await workos.organizations.listOrganizations()
+      // Merge WorkOS data with our database data (slugs)
+      organizations = result.data
+        .map((workosOrg) => {
+          const dbOrg = dbOrgs?.find(o => o.external_id === workosOrg.id)
+          if (!dbOrg?.slug) return null
+          return {
+            id: workosOrg.id,
+            slug: dbOrg.slug,
+            name: workosOrg.name
+          }
+        })
+        .filter((org): org is { id: string; slug: string; name: string } => org !== null)
+    } catch (e) {
+      console.error('Error fetching organizations:', e)
+    }
+  }
 
   return (
-    <div className="px-4 lg:px-6">
-      <div className="space-y-6">
+    <div className="space-y-6">
+      <div className="px-4 lg:px-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
           <p className="text-muted-foreground mt-2">
             Welcome back, {user?.email}
           </p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border bg-card p-6">
-            <h3 className="font-semibold">Products</h3>
-            <p className="text-sm text-muted-foreground mt-1">Manage subscription products</p>
-          </div>
-        </div>
       </div>
+      
+      <AdminDashboardContainer organizations={organizations} />
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import {
+  IconDashboard,
   IconPackage,
   IconUsers,
 } from "@tabler/icons-react"
@@ -21,6 +22,11 @@ import {
 
 const data = {
   navMain: [
+    {
+      title: "Dashboard",
+      url: "/admin",
+      icon: IconDashboard,
+    },
     {
       title: "Clients",
       url: "/admin/clients",

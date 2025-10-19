@@ -4,13 +4,13 @@ import { getAuthSession } from '@/lib/auth'
 import { configureTwilioWebhook } from '@/lib/twilio/client'
 
 type RouteContext = {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string; id: string }>
 }
 
 export async function POST(request: Request, context: RouteContext) {
   try {
-    const { id: phoneNumberId } = await context.params
-    const { user, organizationId } = await getAuthSession()
+    const { slug, id: phoneNumberId } = await context.params
+    const { user, organizationId } = await getAuthSession(slug)
 
     if (!user || !organizationId) {
       return NextResponse.json(
@@ -113,7 +113,7 @@ export async function POST(request: Request, context: RouteContext) {
       webhookUrl 
     })
   } catch (error) {
-    console.error('Error in /api/phone-numbers/[id]/configure-webhook POST:', error)
+    console.error('Error in /api/[slug]/phone-numbers/[id]/configure-webhook POST:', error)
     return NextResponse.json(
       { 
         error: error instanceof Error ? error.message : 'Internal server error' 
