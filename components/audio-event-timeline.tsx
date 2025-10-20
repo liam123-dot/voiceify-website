@@ -68,6 +68,8 @@ function getEventColor(eventType: CallEventType, state?: string): string {
   }
   
   switch (eventType) {
+    case 'recording_started':
+      return '#f59e0b' // orange - recording milestone
     case 'user_input_transcribed':
       return '#3b82f6' // blue - user
     case 'speech_created':
@@ -87,6 +89,8 @@ function getEventColor(eventType: CallEventType, state?: string): string {
 
 function getEventIcon(eventType: CallEventType) {
   switch (eventType) {
+    case 'recording_started':
+      return <RadioIcon className="size-3" />
     case 'user_input_transcribed':
     case 'user_state_changed':
       return <UserIcon className="size-3" />
@@ -117,6 +121,8 @@ function getEventLabel(eventType: CallEventType, state?: string): string {
   }
   
   switch (eventType) {
+    case 'recording_started':
+      return 'Recording Started'
     case 'room_connected':
       return 'Room Connected'
     case 'session_start':
@@ -154,14 +160,22 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
   const timelineEvents = useMemo(() => {
     const processed: TimelineEvent[] = []
     
-    // Find room_connected event as the reference point
+    // Prefer recording_started event for most accurate sync with the audio recording.
+    // The recording_started event contains the precise timestamp from LiveKit egress
+    // indicating when audio capture actually began. This is critical for synchronization
+    // because there's a delay between room_connected and when recording starts
+    // (during agent setup, configuration, etc).
+    // Fallback to room_connected if recording wasn't enabled or event is missing.
+    const recordingStartEvent = events.find(e => e.event_type === 'recording_started')
     const roomConnectedEvent = events.find(e => e.event_type === 'room_connected')
-    if (!roomConnectedEvent) {
-      console.log('No room_connected event found')
+    
+    const referenceEvent = recordingStartEvent || roomConnectedEvent
+    if (!referenceEvent) {
+      console.log('No recording_started or room_connected event found')
       return []
     }
 
-    const recordingStart = new Date(roomConnectedEvent.time).getTime()
+    const recordingStart = new Date(referenceEvent.time).getTime()
 
     // Process events that occur after room_connected and have timing info
     events.forEach((event) => {
@@ -177,6 +191,7 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
       
       // Only include events that we want to visualize
       const visualizableEvents: CallEventType[] = [
+        'recording_started',
         'room_connected',
         'session_start',
         'user_input_transcribed',

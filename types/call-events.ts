@@ -64,6 +64,12 @@ export interface TransferSuccessEventData {
 // Agent Session Events
 // ============================================
 
+export interface RecordingStartedEventData {
+  egressId: string;
+  startedAtUnixMs: number;
+  recordingFilename: string;
+}
+
 export interface ConversationItemAddedEventData {
   role: 'user' | 'assistant' | 'system';
   textContent: string;
@@ -205,6 +211,7 @@ export type CallEventType =
   | 'room_connected'
   // Agent session events
   | 'session_start'
+  | 'recording_started'
   | 'conversation_item_added'
   | 'user_input_transcribed'
   | 'function_tools_executed'
@@ -226,6 +233,7 @@ export type CallEventData =
   | TransferNoAnswerEventData
   | TransferFailedEventData
   | TransferSuccessEventData
+  | RecordingStartedEventData
   | ConversationItemAddedEventData
   | UserInputTranscribedEventData
   | FunctionToolsExecutedEventData
