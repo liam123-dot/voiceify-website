@@ -8,6 +8,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    
     const agentId = id;
     const payload = await request.json();
 

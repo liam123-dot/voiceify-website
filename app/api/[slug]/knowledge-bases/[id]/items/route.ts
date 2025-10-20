@@ -1,12 +1,12 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getAuthSession } from '@/lib/auth'
-import ragie from '@/lib/ragie/client'
+import { tasks } from '@trigger.dev/sdk/v3'
 import { createKnowledgeBaseItem, insertKnowledgeBaseItem } from '@/lib/knowledge-base/items'
 
 export const dynamic = 'force-dynamic'
 
-// GET - List all items in a knowledge base with Ragie status check
+// GET - List all items in a knowledge base
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string; id: string }> }
@@ -59,52 +59,7 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch items' }, { status: 500 })
     }
 
-    // Check Ragie status for items not in final state
-    const itemsWithStatus = await Promise.all(
-      (items || []).map(async (item) => {
-        // Only check Ragie status if not in final state
-        if (item.ragie_document_id && item.status !== 'indexed' && item.status !== 'failed') {
-          try {
-            const ragieDoc = await ragie.documents.get({ 
-              documentId: item.ragie_document_id,
-              partition: organizationId
-            })
-            
-            const ragieStatus = ragieDoc.status
-            
-            // Map Ragie status to our status
-            let newStatus = item.status
-            if (ragieStatus === 'ready') {
-              newStatus = 'indexed'
-            } else if (ragieStatus === 'failed') {
-              newStatus = 'failed'
-            } else if (ragieStatus === 'processing' || ragieStatus === 'queued') {
-              newStatus = 'processing'
-            }
-
-            // Update status in database if changed
-            if (newStatus !== item.status) {
-              await supabase
-                .from('knowledge_base_items')
-                .update({ 
-                  status: newStatus,
-                  ragie_indexed_at: newStatus === 'indexed' ? new Date().toISOString() : null
-                })
-                .eq('id', item.id)
-
-              item.status = newStatus
-            }
-          } catch (error) {
-            console.error(`Error checking Ragie status for item ${item.id}:`, error)
-            // Don't fail the whole request if one status check fails
-          }
-        }
-
-        return item
-      })
-    )
-
-    return NextResponse.json({ items: itemsWithStatus })
+    return NextResponse.json({ items: items || [] })
   } catch (error) {
     console.error('Error in GET /api/[slug]/knowledge-bases/[id]/items:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -179,7 +134,15 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
     }
 
-    // Create item data and index with Ragie
+    // Get optional chunking config
+    const chunkSize = formData.get('chunk_size') 
+      ? parseInt(formData.get('chunk_size') as string, 10) 
+      : undefined
+    const chunkOverlap = formData.get('chunk_overlap')
+      ? parseInt(formData.get('chunk_overlap') as string, 10)
+      : undefined
+
+    // Create item data
     const { itemData } = await createKnowledgeBaseItem({
       knowledgeBaseId,
       organizationId,
@@ -188,10 +151,23 @@ export async function POST(
       text_content: formData.get('text_content') as string | undefined,
       file: formData.get('file') as File | undefined,
       type: type as 'url' | 'text' | 'file',
+      chunkSize,
+      chunkOverlap,
     })
 
     // Insert the item into the database
     const item = await insertKnowledgeBaseItem(itemData)
+
+    // Trigger background processing task
+    try {
+      await tasks.trigger('process-item', {
+        knowledgeBaseItemId: item.id,
+      })
+    } catch (triggerError) {
+      console.error('Error triggering processing task:', triggerError)
+      // Don't fail the request if trigger fails - item is created
+      // User can manually retry processing later
+    }
 
     return NextResponse.json({ item }, { status: 201 })
   } catch (error) {

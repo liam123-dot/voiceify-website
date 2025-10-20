@@ -1,6 +1,7 @@
 import { getAuthSession } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { tasks } from "@trigger.dev/sdk/v3";
 import { createKnowledgeBaseItem, insertKnowledgeBaseItem } from "@/lib/knowledge-base/items";
 
 // POST - Create multiple knowledge base items at once
@@ -79,7 +80,7 @@ export async function POST(
           continue;
         }
 
-        // Create item data and index with Ragie
+        // Create item data
         const { itemData } = await createKnowledgeBaseItem({
           knowledgeBaseId,
           organizationId,
@@ -91,6 +92,17 @@ export async function POST(
         // Insert the item into the database
         try {
           const insertedItem = await insertKnowledgeBaseItem(itemData);
+          
+          // Trigger background processing
+          try {
+            await tasks.trigger("process-item", {
+              knowledgeBaseItemId: insertedItem.id,
+            });
+          } catch (triggerError) {
+            console.error("Error triggering processing task:", triggerError);
+            // Don't fail the request if trigger fails
+          }
+          
           results.successful.push(insertedItem);
         } catch (insertError) {
           console.error("Error creating knowledge base item:", insertError);

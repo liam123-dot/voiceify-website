@@ -1,7 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getAuthSession } from '@/lib/auth'
-import ragie from '@/lib/ragie/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,10 +44,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
     }
 
-    // Fetch the item to get ragie_document_id and file_location
+    // Fetch the item to get file_location
     const { data: item, error: fetchError } = await supabase
       .from('knowledge_base_items')
-      .select('ragie_document_id, file_location, type')
+      .select('file_location, type')
       .eq('id', itemId)
       .eq('knowledge_base_id', knowledgeBaseId)
       .single()
@@ -57,18 +56,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Item not found' }, { status: 404 })
     }
 
-    // Delete from Ragie if document was indexed
-    if (item.ragie_document_id) {
-      try {
-        await ragie.documents.delete({ 
-          documentId: item.ragie_document_id,
-          partition: organizationId
-        })
-      } catch (error) {
-        console.error('Error deleting document from Ragie:', error)
-        // Continue with deletion even if Ragie delete fails
-      }
-    }
+    // Delete associated document embeddings (CASCADE will handle this)
+    // knowledge_base_documents has ON DELETE CASCADE from knowledge_base_items
 
     // Delete file from storage if it's a file type
     if (item.type === 'file' && item.file_location) {
