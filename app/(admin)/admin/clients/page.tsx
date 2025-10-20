@@ -17,8 +17,8 @@ import {
 import { IconBuilding } from "@tabler/icons-react"
 import { ClientsTableBody } from "./clients-table-body"
 
-// const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-const baseUrl = 'http://localhost:3000';
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+// const baseUrl = 'http://localhost:3000';
 
 export default async function ClientsPage() {
 
