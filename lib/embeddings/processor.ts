@@ -190,7 +190,7 @@ export async function processTextWithEmbeddings(
   
   return chunksWithEmbeddings;
 }
-
+// 
 /**
  * Extract text content from HTML
  * Basic implementation - strips HTML tags and extracts text
