@@ -13,7 +13,8 @@ import {
   UserIcon,
   VolumeIcon,
   BookOpenIcon,
-  MessageSquareIcon
+  MessageSquareIcon,
+  RadioIcon
 } from 'lucide-react'
 import type { CallEventType } from '@/types/call-events'
 
@@ -124,6 +125,9 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [activeEventId, setActiveEventId] = useState<string | null>(null)
+  const eventsListRef = useRef<HTMLDivElement>(null)
+  const eventRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Process events to create timeline events with timing
   const timelineEvents = useMemo(() => {
@@ -190,6 +194,70 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
     // Sort by start time
     return processed.sort((a, b) => a.start - b.start)
   }, [events, callStartTime])
+
+  // Determine active event based on current playback time
+  useEffect(() => {
+    if (!isPlaying || timelineEvents.length === 0) {
+      return
+    }
+
+    // Find the event that contains the current time or the most recent one
+    let active: TimelineEvent | null = null
+    
+    for (const event of timelineEvents) {
+      if (event.start <= currentTime) {
+        // If event has an end time, check if we're within it
+        if (event.end && currentTime <= event.end) {
+          active = event
+          break
+        }
+        // Otherwise, this is the most recent event so far
+        active = event
+      } else {
+        // We've gone past the current time
+        break
+      }
+    }
+
+    const newActiveId = active?.id || null
+    if (newActiveId !== activeEventId) {
+      setActiveEventId(newActiveId)
+      
+      // Auto-scroll to the active event
+      if (newActiveId && eventRefsMap.current.has(newActiveId)) {
+        const eventElement = eventRefsMap.current.get(newActiveId)
+        if (eventElement && eventsListRef.current) {
+          eventElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+          })
+        }
+      }
+
+      // Update waveform region to show active event
+      if (regionsRef.current && wavesurferRef.current && isReady && active) {
+        regionsRef.current.clearRegions()
+        const regionEnd = active.end || active.start + 0.1
+        regionsRef.current.addRegion({
+          start: active.start,
+          end: regionEnd,
+          color: active.color + '30', // Add transparency
+          drag: false,
+          resize: false,
+        })
+      }
+    }
+  }, [currentTime, isPlaying, timelineEvents, activeEventId, isReady])
+
+  // Clear active event when playback stops
+  useEffect(() => {
+    if (!isPlaying) {
+      setActiveEventId(null)
+      if (regionsRef.current) {
+        regionsRef.current.clearRegions()
+      }
+    }
+  }, [isPlaying])
 
   // Initialize WaveSurfer
   useEffect(() => {
@@ -258,7 +326,8 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
   const handleEventHover = (event: TimelineEvent) => {
     setHoveredEvent(event.id)
     
-    if (regionsRef.current && wavesurferRef.current && isReady) {
+    // Only show hover region if not playing (otherwise active event region is shown)
+    if (!isPlaying && regionsRef.current && wavesurferRef.current && isReady) {
       // Clear existing regions
       regionsRef.current.clearRegions()
       
@@ -277,7 +346,8 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
 
   const handleEventLeave = () => {
     setHoveredEvent(null)
-    if (regionsRef.current) {
+    // Only clear regions if not playing
+    if (!isPlaying && regionsRef.current) {
       regionsRef.current.clearRegions()
     }
   }
@@ -372,19 +442,32 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
           <div className="text-sm font-medium text-muted-foreground">
             Events Timeline ({timelineEvents.length})
           </div>
-          <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-2">
-            {timelineEvents.map((event) => (
-              <div
-                key={event.id}
-                onClick={() => handleEventClick(event)}
-                onMouseEnter={() => handleEventHover(event)}
-                onMouseLeave={handleEventLeave}
-                className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                  hoveredEvent === event.id
-                    ? 'border-primary bg-primary/5 shadow-sm'
-                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                }`}
-              >
+          <div ref={eventsListRef} className="space-y-1.5 max-h-[400px] overflow-y-auto pr-2">
+            {timelineEvents.map((event) => {
+              const isActive = activeEventId === event.id
+              const isHovered = hoveredEvent === event.id
+              
+              return (
+                <div
+                  key={event.id}
+                  ref={(el) => {
+                    if (el) {
+                      eventRefsMap.current.set(event.id, el)
+                    } else {
+                      eventRefsMap.current.delete(event.id)
+                    }
+                  }}
+                  onClick={() => handleEventClick(event)}
+                  onMouseEnter={() => handleEventHover(event)}
+                  onMouseLeave={handleEventLeave}
+                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                    isActive
+                      ? 'border-primary bg-primary/10 shadow-md ring-2 ring-primary/20'
+                      : isHovered
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                  }`}
+                >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div
@@ -428,7 +511,8 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
                   </div>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
