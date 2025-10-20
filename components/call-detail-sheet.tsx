@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { calculateCallCost, formatCurrency, extractConfigDetails, REALTIME_MODEL_PRICING } from '@/lib/pricing'
 import { getLLMModel, getSTTModel, getTTSModel } from '@/lib/models'
+import { AudioEventTimeline } from '@/components/audio-event-timeline'
 
 interface AgentEvent {
   id: string
@@ -400,7 +401,7 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className={`w-full grid ${showEvents ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <TabsList className={`w-full grid ${showEvents ? 'grid-cols-5' : 'grid-cols-4'}`}>
             <TabsTrigger value="overview">
               <InfoIcon className="size-4" />
               <span className="ml-1 hidden sm:inline">Overview</span>
@@ -411,8 +412,12 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                 <span className="ml-1 hidden sm:inline">Events</span>
               </TabsTrigger>
             )}
-            <TabsTrigger value="cost">
+            <TabsTrigger value="timeline">
               <BarChart3Icon className="size-4" />
+              <span className="ml-1 hidden sm:inline">Timeline</span>
+            </TabsTrigger>
+            <TabsTrigger value="cost">
+              <CoinsIcon className="size-4" />
               <span className="ml-1 hidden sm:inline">Cost</span>
             </TabsTrigger>
             <TabsTrigger value="transcript">
@@ -750,6 +755,30 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Audio Timeline Tab */}
+          <TabsContent value="timeline" className="mt-4">
+            {recordingUrl && events.length > 0 ? (
+              <AudioEventTimeline
+                recordingUrl={recordingUrl}
+                events={events}
+                callStartTime={call.created_at}
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Audio Timeline</CardTitle>
+                  <CardDescription>Recording timeline not available</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    {!recordingUrl && 'No recording available for this call'}
+                    {recordingUrl && events.length === 0 && 'No events available for timeline'}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Cost & Usage Tab */}

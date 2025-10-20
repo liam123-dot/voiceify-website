@@ -59,6 +59,7 @@
     "tailwind-merge": "^3.3.1",
     "twilio": "^5.10.3",
     "vaul": "^1.1.2",
+    "wavesurfer.js": "^7.11.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
