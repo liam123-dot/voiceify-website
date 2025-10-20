@@ -19,6 +19,8 @@ interface CallsTableProps {
   calls: (Call & { agents?: { name: string } })[]
   slug: string
   showEvents?: boolean
+  showCosts?: boolean
+  showTimeline?: boolean
 }
 
 function formatDuration(seconds: number | null): string {
@@ -62,7 +64,7 @@ function getStatusLabel(status: CallStatus): string {
   }
 }
 
-export function CallsTable({ calls, slug, showEvents = false }: CallsTableProps) {
+export function CallsTable({ calls, slug, showEvents = false, showCosts = false, showTimeline = false }: CallsTableProps) {
   const [selectedCall, setSelectedCall] = useState<(Call & { agents?: { name: string } }) | null>(null)
 
   return (
@@ -127,6 +129,8 @@ export function CallsTable({ calls, slug, showEvents = false }: CallsTableProps)
         slug={slug}
         open={!!selectedCall}
         showEvents={showEvents}
+        showCosts={showCosts}
+        showTimeline={showTimeline}
         onOpenChange={(open) => !open && setSelectedCall(null)}
       />
     </>

@@ -12,7 +12,7 @@ export default async function ClientCallsPage({ params }: ClientCallsPageProps) 
 
   return (
     <div className="space-y-4 mt-6">
-      <CallsContainer slug={slug} showEvents={true}/>
+      <CallsContainer slug={slug} showEvents={true} showCosts={true} showTimeline={true} />
     </div>
   )
 }

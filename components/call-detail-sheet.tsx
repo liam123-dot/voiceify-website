@@ -48,6 +48,8 @@ interface CallDetailSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   showEvents?: boolean
+  showCosts?: boolean
+  showTimeline?: boolean
 }
 
 function formatDuration(seconds: number | null): string {
@@ -182,7 +184,7 @@ function getEventLabel(eventType: CallEventType): string {
   }
 }
 
-export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = false }: CallDetailSheetProps) {
+export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = false, showCosts = false, showTimeline = false }: CallDetailSheetProps) {
   const [events, setEvents] = useState<AgentEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null)
@@ -401,7 +403,15 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className={`w-full grid ${showEvents ? 'grid-cols-5' : 'grid-cols-4'}`}>
+          <TabsList className={`w-full grid ${
+            (() => {
+              const count = [true, showEvents, showTimeline, showCosts, true].filter(Boolean).length
+              return count === 2 ? 'grid-cols-2' :
+                     count === 3 ? 'grid-cols-3' :
+                     count === 4 ? 'grid-cols-4' :
+                     'grid-cols-5'
+            })()
+          }`}>
             <TabsTrigger value="overview">
               <InfoIcon className="size-4" />
               <span className="ml-1 hidden sm:inline">Overview</span>
@@ -412,14 +422,18 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                 <span className="ml-1 hidden sm:inline">Events</span>
               </TabsTrigger>
             )}
-            <TabsTrigger value="timeline">
-              <BarChart3Icon className="size-4" />
-              <span className="ml-1 hidden sm:inline">Timeline</span>
-            </TabsTrigger>
-            <TabsTrigger value="cost">
-              <CoinsIcon className="size-4" />
-              <span className="ml-1 hidden sm:inline">Cost</span>
-            </TabsTrigger>
+            {showTimeline && (
+              <TabsTrigger value="timeline">
+                <BarChart3Icon className="size-4" />
+                <span className="ml-1 hidden sm:inline">Timeline</span>
+              </TabsTrigger>
+            )}
+            {showCosts && (
+              <TabsTrigger value="cost">
+                <CoinsIcon className="size-4" />
+                <span className="ml-1 hidden sm:inline">Cost</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="transcript">
               <MessageSquareIcon className="size-4" />
               <span className="ml-1 hidden sm:inline">Transcript</span>
@@ -429,7 +443,7 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4 mt-4">
             {/* Total Cost Summary */}
-            {callCost && (
+            {showCosts && callCost && (
               <Card className="border-2 border-primary/20 bg-primary/5">
                 <CardContent className="pt-6 pb-6">
                   <div className="space-y-4">
@@ -758,7 +772,8 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
           </TabsContent>
 
           {/* Audio Timeline Tab */}
-          <TabsContent value="timeline" className="mt-4">
+          {showTimeline && (
+            <TabsContent value="timeline" className="mt-4">
             {recordingUrl && events.length > 0 ? (
               <AudioEventTimeline
                 recordingUrl={recordingUrl}
@@ -780,9 +795,11 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
               </Card>
             )}
           </TabsContent>
+          )}
 
           {/* Cost & Usage Tab */}
-          <TabsContent value="cost" className="space-y-4 mt-4">
+          {showCosts && (
+            <TabsContent value="cost" className="space-y-4 mt-4">
             {callCost && costBreakdown.length > 0 && (
               <Card>
                 <CardHeader>
@@ -909,6 +926,7 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
               </Card>
             )}
           </TabsContent>
+          )}
 
           {/* Transcript Tab */}
           <TabsContent value="transcript" className="mt-4">

@@ -34,9 +34,11 @@ interface Agent {
 interface CallsContainerProps {
   slug: string
   showEvents?: boolean
+  showCosts?: boolean
+  showTimeline?: boolean
 }
 
-export function CallsContainer({ slug, showEvents = false }: CallsContainerProps) {
+export function CallsContainer({ slug, showEvents = false, showCosts = false, showTimeline = false }: CallsContainerProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [agentId, setAgentId] = useState<string>('all')
@@ -200,7 +202,7 @@ export function CallsContainer({ slug, showEvents = false }: CallsContainerProps
           </div>
         ) : (
           <>
-            <CallsTable calls={calls} slug={slug} showEvents={showEvents} />
+            <CallsTable calls={calls} slug={slug} showEvents={showEvents} showCosts={showCosts} showTimeline={showTimeline} />
             
             {pagination && pagination.totalPages > 1 && (
               <div className="flex items-center justify-between px-2 py-4">
