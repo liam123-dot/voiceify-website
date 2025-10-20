@@ -25,3 +25,22 @@ export default authkitMiddleware({
     ],
   }
 })
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - / (home page)
+     * - /demo and /demo/* (demo pages)
+     * - /api/calls/* (Twilio webhook routes)
+     * - /api/callback (auth callback)
+     * - /api/agents/* (agent routes)
+     * - /api/phone-number/* (phone number routes)
+     * - /api/tools/* (tool routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico (favicon)
+     */
+    '/((?!$|demo|api/calls|api/callback|api/agents|api/phone-number|api/tools|_next/static|_next/image|favicon.ico).*)',
+  ],
+};
