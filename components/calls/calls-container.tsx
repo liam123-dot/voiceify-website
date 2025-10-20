@@ -32,10 +32,11 @@ interface Agent {
 }
 
 interface CallsContainerProps {
-  organizationSlug: string
+  slug: string
+  showEvents?: boolean
 }
 
-export function CallsContainer({ organizationSlug }: CallsContainerProps) {
+export function CallsContainer({ slug, showEvents = false }: CallsContainerProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [agentId, setAgentId] = useState<string>('all')
@@ -48,9 +49,9 @@ export function CallsContainer({ organizationSlug }: CallsContainerProps) {
 
   // Fetch agents for filter dropdown
   const { data: agentsData } = useQuery<{ agents: Agent[] }>({
-    queryKey: ['agents', organizationSlug],
+    queryKey: ['agents', slug],
     queryFn: async () => {
-      const response = await fetch(`/api/${organizationSlug}/agents`)
+      const response = await fetch(`/api/${slug}/agents`)
       if (!response.ok) {
         throw new Error('Failed to fetch agents')
       }
@@ -61,7 +62,7 @@ export function CallsContainer({ organizationSlug }: CallsContainerProps) {
   // Fetch calls with React Query
   // organizationSlug is included in the query key for proper cache isolation per organization
   const { data, isLoading, isRefetching, refetch } = useQuery<CallsResponse>({
-    queryKey: ['calls', organizationSlug, currentPage, limit, agentId, dateRange],
+    queryKey: ['calls', slug, currentPage, limit, agentId, dateRange],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: currentPage.toString(),
@@ -73,7 +74,7 @@ export function CallsContainer({ organizationSlug }: CallsContainerProps) {
       if (dateRange?.from) params.append('date_from', dateRange.from.toISOString().split('T')[0])
       if (dateRange?.to) params.append('date_to', dateRange.to.toISOString().split('T')[0])
 
-      const response = await fetch(`/api/${organizationSlug}/calls?${params.toString()}`)
+      const response = await fetch(`/api/${slug}/calls?${params.toString()}`)
       if (!response.ok) {
         throw new Error('Failed to fetch calls')
       }
@@ -199,7 +200,7 @@ export function CallsContainer({ organizationSlug }: CallsContainerProps) {
           </div>
         ) : (
           <>
-            <CallsTable calls={calls} />
+            <CallsTable calls={calls} slug={slug} showEvents={showEvents} />
             
             {pagination && pagination.totalPages > 1 && (
               <div className="flex items-center justify-between px-2 py-4">

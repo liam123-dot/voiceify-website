@@ -212,6 +212,7 @@ export type CallEventType =
   | 'user_state_changed'
   | 'speech_created'
   | 'metrics_collected'
+  | 'knowledge_retrieved'
   // Summary events
   | 'session_complete'
   | 'transcript';

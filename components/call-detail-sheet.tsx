@@ -23,10 +23,12 @@ import {
   ActivityIcon,
   ArrowRightIcon,
   UserIcon,
-  BotIcon,
   ZapIcon,
   VolumeIcon,
-  HeadphonesIcon
+  HeadphonesIcon,
+  BookOpenIcon,
+  FileTextIcon,
+  CheckCircleIcon
 } from 'lucide-react'
 import { calculateCallCost, formatCurrency, extractConfigDetails, REALTIME_MODEL_PRICING } from '@/lib/pricing'
 import { getLLMModel, getSTTModel, getTTSModel } from '@/lib/models'
@@ -41,8 +43,10 @@ interface AgentEvent {
 
 interface CallDetailSheetProps {
   call: (Call & { agents?: { name: string }; recording_url?: string | null }) | null
+  slug: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  showEvents?: boolean
 }
 
 function formatDuration(seconds: number | null): string {
@@ -120,7 +124,11 @@ function getEventIcon(eventType: CallEventType) {
     case 'user_state_changed':
       return <ActivityIcon className="size-4" />
     case 'session_complete':
-      return <BotIcon className="size-4" />
+      return <CheckCircleIcon className="size-4" />
+    case 'transcript':
+      return <FileTextIcon className="size-4" />
+    case 'knowledge_retrieved':
+      return <BookOpenIcon className="size-4" />
     default:
       return <ActivityIcon className="size-4" />
   }
@@ -152,12 +160,28 @@ function getEventLabel(eventType: CallEventType): string {
       return 'Session Complete'
     case 'transcript':
       return 'Transcript Saved'
+    case 'knowledge_retrieved':
+      return 'Knowledge Retrieved'
+    case 'transfer_initiated':
+      return 'Transfer Initiated'
+    case 'transfer_no_answer':
+      return 'Transfer No Answer'
+    case 'transfer_failed':
+      return 'Transfer Failed'
+    case 'transfer_success':
+      return 'Transfer Success'
+    case 'transfer_reconnected':
+      return 'Transfer Reconnected'
+    case 'room_connected':
+      return 'Room Connected'
+    case 'session_start':
+      return 'Session Started'
     default:
       return eventType.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
   }
 }
 
-export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetProps) {
+export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = false }: CallDetailSheetProps) {
   const [events, setEvents] = useState<AgentEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
 
@@ -171,7 +195,7 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
     const fetchEvents = async () => {
       setLoadingEvents(true)
       try {
-        const response = await fetch(`/api/calls/${call.id}/events`)
+        const response = await fetch(`/api/${slug}/calls/${call.id}/events`)
         if (response.ok) {
           const data = await response.json()
           setEvents(data.events || [])
@@ -185,7 +209,7 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
     }
 
     fetchEvents()
-  }, [call?.id])
+  }, [call?.id, slug])
 
   // Calculate cost for the call and extract model details
   const { callCost, modelDetails } = useMemo(() => {
@@ -339,15 +363,17 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="w-full grid grid-cols-3">
+          <TabsList className={`w-full grid ${showEvents ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="overview">
               <InfoIcon className="size-4" />
               <span className="ml-1 hidden sm:inline">Overview</span>
             </TabsTrigger>
-            {/* <TabsTrigger value="events">
-              <ActivityIcon className="size-4" />
-              <span className="ml-1 hidden sm:inline">Events</span>
-            </TabsTrigger> */}
+            {showEvents && (
+              <TabsTrigger value="events">
+                <ActivityIcon className="size-4" />
+                <span className="ml-1 hidden sm:inline">Events</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="cost">
               <BarChart3Icon className="size-4" />
               <span className="ml-1 hidden sm:inline">Cost</span>
@@ -463,14 +489,14 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                    {events.map((event, index) => {
+                    {events.filter(event => event.event_type !== 'metrics_collected').map((event, index, filteredEvents) => {
                       const eventTime = new Date(event.time)
-                      const isLastEvent = index === events.length - 1
+                      const isLastEvent = index === filteredEvents.length - 1
                       
                       // Calculate time delta from previous event
                       let timeDelta: string | null = null
                       if (index > 0) {
-                        const previousEventTime = new Date(events[index - 1].time)
+                        const previousEventTime = new Date(filteredEvents[index - 1].time)
                         const deltaMs = eventTime.getTime() - previousEventTime.getTime()
                         timeDelta = formatTimeDelta(deltaMs)
                       }
@@ -507,31 +533,176 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
                                 </div>
                                 
                                 {/* Event-specific details */}
-                                {event.event_type === 'conversation_item_added' && (event.data as { textContent?: string; role?: string }).textContent && (
-                                  <div className="mt-2 text-sm bg-muted/50 p-2 rounded text-muted-foreground">
-                                    <span className="font-medium">{(event.data as { role?: string }).role}:</span> {(event.data as { textContent: string }).textContent.substring(0, 100)}{(event.data as { textContent: string }).textContent.length > 100 ? '...' : ''}
-                                  </div>
-                                )}
-                                {event.event_type === 'user_input_transcribed' && (event.data as { transcript?: string }).transcript && (
-                                  <div className="mt-2 text-sm bg-muted/50 p-2 rounded text-muted-foreground">
-                                    {(event.data as { transcript: string }).transcript}
-                                  </div>
-                                )}
-                                {event.event_type === 'function_tools_executed' && (
-                                  <div className="mt-2 text-sm text-muted-foreground">
-                                    {(event.data as { functionCallsCount?: number }).functionCallsCount || 0} tool{(event.data as { functionCallsCount?: number }).functionCallsCount !== 1 ? 's' : ''} called
-                                  </div>
-                                )}
-                                {event.event_type === 'transferred_to_team' && (event.data as { transferNumber?: string }).transferNumber && (
-                                  <div className="mt-2 text-sm text-muted-foreground">
-                                    To: {(event.data as { transferNumber: string }).transferNumber}
-                                  </div>
-                                )}
-                                {event.event_type === 'agent_state_changed' && (
-                                  <div className="mt-2 text-sm text-muted-foreground">
-                                    {(event.data as { oldState?: string; newState?: string }).oldState} → {(event.data as { oldState?: string; newState?: string }).newState}
-                                  </div>
-                                )}
+                                {event.event_type === 'conversation_item_added' && (() => {
+                                  const itemData = event.data as { item?: { role?: string; content?: string[] }; textContent?: string; role?: string }
+                                  const role = itemData.item?.role || itemData.role
+                                  const content = itemData.item?.content?.[0] || itemData.textContent
+                                  if (content) {
+                                    return (
+                                      <div className="mt-2 text-sm bg-muted/50 p-2 rounded text-muted-foreground">
+                                        <span className="font-medium capitalize">{role}:</span> {content.substring(0, 100)}{content.length > 100 ? '...' : ''}
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {event.event_type === 'user_input_transcribed' && (() => {
+                                  const transcriptData = event.data as { transcript?: string; data?: { transcript?: string } }
+                                  const transcript = transcriptData.data?.transcript || transcriptData.transcript
+                                  if (transcript) {
+                                    return (
+                                      <div className="mt-2 text-sm bg-muted/50 p-2 rounded text-muted-foreground">
+                                        &quot;{transcript}&quot;
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {event.event_type === 'function_tools_executed' && (() => {
+                                  const toolData = event.data as { functionCallsCount?: number }
+                                  const count = toolData.functionCallsCount || 0
+                                  return (
+                                    <div className="mt-2 text-sm text-muted-foreground">
+                                      {count} tool{count !== 1 ? 's' : ''} executed
+                                    </div>
+                                  )
+                                })()}
+                                
+                                {event.event_type === 'transferred_to_team' && (() => {
+                                  const transferData = event.data as { transferNumber?: string }
+                                  if (transferData.transferNumber) {
+                                    return (
+                                      <div className="mt-2 text-sm text-muted-foreground">
+                                        To: {transferData.transferNumber}
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {event.event_type === 'agent_state_changed' && (() => {
+                                  const stateData = event.data as { oldState?: string; newState?: string; data?: { old_state?: string; new_state?: string } }
+                                  const oldState = stateData.data?.old_state || stateData.oldState
+                                  const newState = stateData.data?.new_state || stateData.newState
+                                  if (oldState && newState) {
+                                    return (
+                                      <div className="mt-2 text-sm">
+                                        <span className="text-muted-foreground">{oldState}</span>
+                                        <span className="mx-2">→</span>
+                                        <span className="font-medium">{newState}</span>
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {event.event_type === 'user_state_changed' && (() => {
+                                  const stateData = event.data as { oldState?: string; newState?: string; data?: { old_state?: string; new_state?: string } }
+                                  const oldState = stateData.data?.old_state || stateData.oldState
+                                  const newState = stateData.data?.new_state || stateData.newState
+                                  if (oldState && newState) {
+                                    return (
+                                      <div className="mt-2 text-sm">
+                                        <span className="text-muted-foreground">{oldState}</span>
+                                        <span className="mx-2">→</span>
+                                        <span className="font-medium">{newState}</span>
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {event.event_type === 'speech_created' && (() => {
+                                  const speechData = event.data as { source?: string; userInitiated?: boolean; data?: { source?: string; user_initiated?: boolean } }
+                                  const source = speechData.data?.source || speechData.source
+                                  const userInitiated = speechData.data?.user_initiated ?? speechData.userInitiated
+                                  if (source) {
+                                    return (
+                                      <div className="mt-2 text-sm text-muted-foreground">
+                                        Source: {source} {userInitiated !== undefined && `• ${userInitiated ? 'User initiated' : 'Auto-generated'}`}
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {event.event_type === 'knowledge_retrieved' && (() => {
+                                  const knowledgeData = event.data as { data?: { query?: string; latency_ms?: number; context_length?: number; retrieved_context?: string } }
+                                  const data = knowledgeData.data
+                                  if (data) {
+                                    return (
+                                      <div className="mt-2 space-y-1.5">
+                                        {data.query && (
+                                          <div className="text-sm">
+                                            <span className="text-muted-foreground">Query:</span> <span className="font-medium">&quot;{data.query}&quot;</span>
+                                          </div>
+                                        )}
+                                        <div className="flex gap-3 text-xs text-muted-foreground">
+                                          {data.latency_ms && (
+                                            <span>Latency: {data.latency_ms}ms</span>
+                                          )}
+                                          {data.context_length && (
+                                            <span>Context: {data.context_length} chars</span>
+                                          )}
+                                        </div>
+                                        {data.retrieved_context && (
+                                          <div className="text-xs bg-muted/50 p-2 rounded text-muted-foreground max-h-20 overflow-y-auto">
+                                            {data.retrieved_context.substring(0, 200)}{data.retrieved_context.length > 200 ? '...' : ''}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {event.event_type === 'transcript' && (() => {
+                                  const transcriptData = event.data as { data?: { items?: Array<{ role: string; content: string }> } }
+                                  const items = transcriptData.data?.items
+                                  if (items && items.length > 0) {
+                                    return (
+                                      <div className="mt-2 text-sm text-muted-foreground">
+                                        {items.length} conversation item{items.length !== 1 ? 's' : ''} saved
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {event.event_type === 'session_complete' && (() => {
+                                  const sessionData = event.data as { data?: { usage?: { llmPromptTokens?: number; llmCompletionTokens?: number; ttsCharactersCount?: number; sttAudioDuration?: number }; durationMs?: number } }
+                                  const data = sessionData.data
+                                  if (data) {
+                                    return (
+                                      <div className="mt-2 space-y-1">
+                                        {data.durationMs && (
+                                          <div className="text-sm text-muted-foreground">
+                                            Duration: {formatTimeDelta(data.durationMs)}
+                                          </div>
+                                        )}
+                                        {data.usage && (
+                                          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                                            {data.usage.llmPromptTokens !== undefined && (
+                                              <span>Prompt: {data.usage.llmPromptTokens.toLocaleString()} tokens</span>
+                                            )}
+                                            {data.usage.llmCompletionTokens !== undefined && (
+                                              <span>Completion: {data.usage.llmCompletionTokens.toLocaleString()} tokens</span>
+                                            )}
+                                            {data.usage.ttsCharactersCount !== undefined && (
+                                              <span>TTS: {data.usage.ttsCharactersCount.toLocaleString()} chars</span>
+                                            )}
+                                            {data.usage.sttAudioDuration !== undefined && (
+                                              <span>STT: {data.usage.sttAudioDuration.toFixed(1)}s</span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
                               </div>
                             </div>
                           </div>

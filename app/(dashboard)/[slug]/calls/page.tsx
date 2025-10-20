@@ -9,5 +9,5 @@ interface CallsPageProps {
 export default async function CallsPage({ params }: CallsPageProps) {
   const { slug } = await params
   
-  return <CallsContainer organizationSlug={slug} />
+  return <CallsContainer slug={slug} />
 }

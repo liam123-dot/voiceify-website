@@ -17,6 +17,8 @@ import { CallDetailSheet } from './call-detail-sheet'
 
 interface CallsTableProps {
   calls: (Call & { agents?: { name: string } })[]
+  slug: string
+  showEvents?: boolean
 }
 
 function formatDuration(seconds: number | null): string {
@@ -60,7 +62,7 @@ function getStatusLabel(status: CallStatus): string {
   }
 }
 
-export function CallsTable({ calls }: CallsTableProps) {
+export function CallsTable({ calls, slug, showEvents = false }: CallsTableProps) {
   const [selectedCall, setSelectedCall] = useState<(Call & { agents?: { name: string } }) | null>(null)
 
   return (
@@ -122,7 +124,9 @@ export function CallsTable({ calls }: CallsTableProps) {
 
       <CallDetailSheet
         call={selectedCall}
+        slug={slug}
         open={!!selectedCall}
+        showEvents={showEvents}
         onOpenChange={(open) => !open && setSelectedCall(null)}
       />
     </>

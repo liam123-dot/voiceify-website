@@ -22,14 +22,24 @@ const NAV_ITEMS: NavItem[] = [
     activePattern: "/admin/clients/[slug]",
   },
   {
-    label: "Knowledge Bases",
-    href: "/admin/clients/[slug]/knowledge-bases",
-    activePattern: "/admin/clients/[slug]/knowledge-bases",
-  },
-  {
     label: "Agents",
     href: "/admin/clients/[slug]/agents",
     activePattern: "/admin/clients/[slug]/agents",
+  },
+  {
+    label: "Tools",
+    href: "/admin/clients/[slug]/tools",
+    activePattern: "/admin/clients/[slug]/tools",
+  },
+  {
+    label: "Calls",
+    href: "/admin/clients/[slug]/calls",
+    activePattern: "/admin/clients/[slug]/calls",
+  },
+  {
+    label: "Knowledge Bases",
+    href: "/admin/clients/[slug]/knowledge-bases",
+    activePattern: "/admin/clients/[slug]/knowledge-bases",
   },
   {
     label: "Credentials",
@@ -46,11 +56,7 @@ const NAV_ITEMS: NavItem[] = [
     href: "/admin/clients/[slug]/products",
     activePattern: "/admin/clients/[slug]/products",
   },
-  {
-    label: "Tools",
-    href: "/admin/clients/[slug]/tools",
-    activePattern: "/admin/clients/[slug]/tools",
-  },
+
 ]
 
 export function ClientNav({ clientSlug }: ClientNavProps) {
