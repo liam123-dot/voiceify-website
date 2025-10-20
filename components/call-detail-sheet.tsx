@@ -184,6 +184,8 @@ function getEventLabel(eventType: CallEventType): string {
 export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = false }: CallDetailSheetProps) {
   const [events, setEvents] = useState<AgentEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null)
+  const [loadingRecording, setLoadingRecording] = useState(false)
 
   // Fetch agent events when call changes
   useEffect(() => {
@@ -210,6 +212,41 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
 
     fetchEvents()
   }, [call?.id, slug])
+
+  // Fetch call recording when call changes
+  useEffect(() => {
+    if (!call?.id) {
+      setRecordingUrl(null)
+      return
+    }
+
+    // If recording_url is already in the call object, use it
+    // if (call.recording_url) {
+    //   setRecordingUrl(call.recording_url)
+    //   return
+    // }
+
+    const fetchRecording = async () => {
+      setLoadingRecording(true)
+      try {
+        const response = await fetch(`/api/${slug}/calls/${call.id}/recording`)
+        if (response.ok) {
+          const data = await response.json()
+          setRecordingUrl(data.recordingUrl || null)
+        } else {
+          // Recording not available yet or doesn't exist
+          setRecordingUrl(null)
+        }
+      } catch (error) {
+        console.error('Failed to fetch recording:', error)
+        setRecordingUrl(null)
+      } finally {
+        setLoadingRecording(false)
+      }
+    }
+
+    fetchRecording()
+  }, [call?.id, call?.recording_url, slug])
 
   // Calculate cost for the call and extract model details
   const { callCost, modelDetails } = useMemo(() => {
@@ -860,7 +897,15 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
               </CardHeader>
               <CardContent>
                 {/* Audio Player */}
-                {call.recording_url && (
+                {loadingRecording && (
+                  <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <HeadphonesIcon className="size-4 text-primary animate-pulse" />
+                      <span className="text-sm text-muted-foreground">Loading recording...</span>
+                    </div>
+                  </div>
+                )}
+                {!loadingRecording && recordingUrl && (
                   <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
                     <div className="flex items-center gap-2 mb-2">
                       <HeadphonesIcon className="size-4 text-primary" />
@@ -871,7 +916,7 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                       className="w-full"
                       preload="metadata"
                     >
-                      <source src={call.recording_url} type="audio/mpeg" />
+                      <source src={recordingUrl} type="audio/mpeg" />
                       Your browser does not support the audio element.
                     </audio>
                   </div>
