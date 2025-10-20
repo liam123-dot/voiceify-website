@@ -34,6 +34,7 @@ interface TimelineEvent {
   end: number | null // seconds from recording start, null if instant event
   color: string
   data: Record<string, unknown>
+  state?: string // For state change events
 }
 
 interface AudioEventTimelineProps {
@@ -49,10 +50,25 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`
 }
 
-function getEventColor(eventType: CallEventType): string {
+function getEventColor(eventType: CallEventType, state?: string): string {
+  // For state changes, use color based on the state
+  if (eventType === 'agent_state_changed' || eventType === 'user_state_changed') {
+    switch (state) {
+      case 'speaking':
+        return '#10b981' // green - speaking
+      case 'listening':
+        return '#3b82f6' // blue - listening
+      case 'thinking':
+        return '#8b5cf6' // purple - thinking
+      case 'away':
+        return '#6b7280' // gray - away
+      default:
+        return '#06b6d4' // cyan - other states
+    }
+  }
+  
   switch (eventType) {
     case 'user_input_transcribed':
-    case 'user_state_changed':
       return '#3b82f6' // blue - user
     case 'speech_created':
     case 'conversation_item_added':
@@ -61,8 +77,6 @@ function getEventColor(eventType: CallEventType): string {
       return '#8b5cf6' // purple - tools
     case 'knowledge_retrieved':
       return '#f59e0b' // orange - knowledge
-    case 'agent_state_changed':
-      return '#06b6d4' // cyan - agent state
     case 'room_connected':
     case 'session_start':
       return '#6366f1' // indigo - session
@@ -90,7 +104,18 @@ function getEventIcon(eventType: CallEventType) {
   }
 }
 
-function getEventLabel(eventType: CallEventType): string {
+function getEventLabel(eventType: CallEventType, state?: string): string {
+  // For state changes, include the actual state in the label
+  if (eventType === 'agent_state_changed' && state) {
+    const stateLabel = state.charAt(0).toUpperCase() + state.slice(1)
+    return `Agent: ${stateLabel}`
+  }
+  
+  if (eventType === 'user_state_changed' && state) {
+    const stateLabel = state.charAt(0).toUpperCase() + state.slice(1)
+    return `User: ${stateLabel}`
+  }
+  
   switch (eventType) {
     case 'room_connected':
       return 'Room Connected'
@@ -102,10 +127,6 @@ function getEventLabel(eventType: CallEventType): string {
       return 'Message Added'
     case 'function_tools_executed':
       return 'Tool Executed'
-    case 'agent_state_changed':
-      return 'Agent State Changed'
-    case 'user_state_changed':
-      return 'User State Changed'
     case 'speech_created':
       return 'Speech Generated'
     case 'knowledge_retrieved':
@@ -175,19 +196,23 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
       let endOffset: number | null = null
       
       // For events with duration, try to extract it
-      const eventData = event.data as { data?: { latency_ms?: number } }
+      const eventData = event.data as { data?: { latency_ms?: number; new_state?: string } }
       if (eventData.data?.latency_ms) {
         endOffset = startOffset + (eventData.data.latency_ms / 1000)
       }
+      
+      // Extract state for state change events
+      const state = eventData.data?.new_state
 
       processed.push({
         id: event.id,
         type: event.event_type,
-        label: getEventLabel(event.event_type),
+        label: getEventLabel(event.event_type, state),
         start: startOffset,
         end: endOffset,
-        color: getEventColor(event.event_type),
-        data: event.data
+        color: getEventColor(event.event_type, state),
+        data: event.data,
+        state
       })
     })
 
@@ -480,6 +505,16 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
                       <div className="font-medium text-sm truncate">
                         {event.label}
                       </div>
+                      {(event.type === 'agent_state_changed' || event.type === 'user_state_changed') && (() => {
+                        const eventData = event.data as { data?: { old_state?: string; new_state?: string } }
+                        const oldState = eventData.data?.old_state
+                        const newState = eventData.data?.new_state
+                        return oldState && newState ? (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {oldState} → {newState}
+                          </div>
+                        ) : null
+                      })()}
                       {event.type === 'knowledge_retrieved' && (() => {
                         const eventData = event.data as { data?: { query?: string } }
                         return eventData.data?.query ? (
@@ -489,10 +524,21 @@ export function AudioEventTimeline({ recordingUrl, events, callStartTime }: Audi
                         ) : null
                       })()}
                       {event.type === 'user_input_transcribed' && (() => {
-                        const eventData = event.data as { transcript?: string }
-                        return eventData.transcript ? (
+                        const eventData = event.data as { data?: { transcript?: string }; transcript?: string }
+                        const transcript = eventData.data?.transcript || eventData.transcript
+                        return transcript ? (
                           <div className="text-xs text-muted-foreground truncate mt-0.5">
-                            &quot;{eventData.transcript}&quot;
+                            &quot;{transcript}&quot;
+                          </div>
+                        ) : null
+                      })()}
+                      {event.type === 'speech_created' && (() => {
+                        const eventData = event.data as { data?: { source?: string; user_initiated?: boolean } }
+                        const source = eventData.data?.source
+                        const userInitiated = eventData.data?.user_initiated
+                        return source ? (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Source: {source}{userInitiated !== undefined && ` • ${userInitiated ? 'User initiated' : 'Auto'}`}
                           </div>
                         ) : null
                       })()}
