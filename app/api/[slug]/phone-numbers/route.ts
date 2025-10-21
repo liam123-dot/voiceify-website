@@ -155,7 +155,7 @@ export async function POST(
         }
       } else {
         // Create a new inbound trunk
-        inboundTrunk = await sipClient.createSipInboundTrunk('Voiceify Inbound Trunk', [phoneNumber], {
+        inboundTrunk = await sipClient.createSipInboundTrunk('Clearsky AI Inbound Trunk', [phoneNumber], {
           allowedAddresses: twilioIPs,
           krispEnabled: true,
           headersToAttributes: {  

@@ -77,7 +77,7 @@ export function AppSidebar({ slug, ...props }: AppSidebarProps) {
               className="data-[slot=sidebar-menu-button]:!p-2"
             >
               <Link href={`/${slug}`} prefetch={true}>
-                <span className="text-lg font-bold">Voiceify</span>
+                <span className="text-lg font-bold">Clearsky AI</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

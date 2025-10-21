@@ -1,5 +1,5 @@
 {
-  "name": "voiceify",
+  "name": "Clearsky AI",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -37,6 +37,7 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/themes": "^3.2.1",
+    "@remixicon/react": "^4.7.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.74.0",
     "@tabler/icons-react": "^3.35.0",
@@ -60,9 +61,10 @@
     "react-day-picker": "^9.11.1",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.64.0",
-    "recharts": "^2.15.4",
+    "recharts": "2.15.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
+    "tailwind-variants": "^3.1.1",
     "twilio": "^5.10.3",
     "vaul": "^1.1.2",
     "wavesurfer.js": "^7.11.0",

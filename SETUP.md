@@ -1,4 +1,4 @@
-# Voiceify Setup Guide
+# Clearsky AI Setup Guide
 
 ## Prerequisites
 
@@ -59,7 +59,7 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 ## Project Structure
 
 ```
-voiceify/
+Clearsky AI/
 ├── app/
 │   ├── (dashboard)/          # Protected dashboard routes
 │   │   ├── layout.tsx        # Dashboard layout with sidebar

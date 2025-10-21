@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Line } from "recharts"
 import { format } from "date-fns"
+import { LineChart } from "@/components/ui/LineChart"
 import {
   Card,
   CardContent,
@@ -10,14 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart"
 import {
   Select,
   SelectContent,
@@ -41,37 +33,6 @@ import {
 } from "@/lib/percentile-utils"
 
 export const description = "Latency percentiles chart"
-
-const chartConfig = {
-  min: {
-    label: "Min",
-    color: "hsl(var(--chart-6))",
-  },
-  p50: {
-    label: "p50",
-    color: "hsl(var(--chart-1))",
-  },
-  p95: {
-    label: "p95",
-    color: "hsl(var(--chart-2))",
-  },
-  p99: {
-    label: "p99",
-    color: "hsl(var(--chart-3))",
-  },
-  avg: {
-    label: "Average",
-    color: "hsl(var(--chart-4))",
-  },
-  max: {
-    label: "Max",
-    color: "hsl(var(--chart-5))",
-  },
-  count: {
-    label: "Count",
-    color: "hsl(var(--muted-foreground))",
-  },
-} satisfies ChartConfig
 
 interface ChartLatencyPercentilesProps {
   events: KnowledgeEvent[]
@@ -114,67 +75,56 @@ export function ChartLatencyPercentiles({
     // Group latencies by time buckets
     const buckets = groupLatenciesByWindow(events, bucketSize, lookbackPeriod, latencyField)
     
+    // Create a full range of time buckets
+    const now = new Date()
+    const startTime = new Date(now.getTime() - period.hours * 60 * 60 * 1000)
+    const bucketMs = bucket.minutes * 60 * 1000
+    
+    // Round start time down to nearest bucket
+    const startBucket = new Date(Math.floor(startTime.getTime() / bucketMs) * bucketMs)
+    
     // Calculate metrics for each bucket
     const chartData: Array<{
       date: string
-      count: number
-      min: number
+      Min: number
       p50: number
       p95: number
       p99: number
-      avg: number
-      max: number
+      Average: number
+      Max: number
     }> = []
     
-    // Only include periods with actual data (no gaps with nulls)
-    const sortedBuckets = Array.from(buckets.entries())
-      .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-    
-    sortedBuckets.forEach(([bucketKey, latencies]) => {
-      const metrics = calculateLatencyMetrics(latencies)
+    // Generate all time buckets in range
+    let currentBucket = new Date(startBucket)
+    while (currentBucket <= now) {
+      const bucketKey = currentBucket.toISOString()
+      const latencies = buckets.get(bucketKey)
+      const metrics = latencies ? calculateLatencyMetrics(latencies) : null
       
-      if (metrics) {
-        chartData.push({
-          date: bucketKey,
-          count: metrics.count,
-          min: metrics.min,
-          p50: metrics.p50,
-          p95: metrics.p95,
-          p99: metrics.p99,
-          avg: metrics.avg,
-          max: metrics.max,
-        })
+      let formattedDate: string
+      if (bucket.minutes < 60) {
+        formattedDate = format(currentBucket, 'MMM d, HH:mm')
+      } else if (bucket.minutes < 1440) {
+        formattedDate = format(currentBucket, 'MMM d, HH:mm')
+      } else {
+        formattedDate = format(currentBucket, 'MMM d')
       }
-    })
+      
+      chartData.push({
+        date: formattedDate,
+        Min: metrics?.min || 0,
+        p50: metrics?.p50 || 0,
+        p95: metrics?.p95 || 0,
+        p99: metrics?.p99 || 0,
+        Average: metrics?.avg || 0,
+        Max: metrics?.max || 0,
+      })
+      
+      currentBucket = new Date(currentBucket.getTime() + bucketMs)
+    }
     
     return chartData
   }, [events, bucketSize, lookbackPeriod, selectedTab])
-
-  const formatXAxis = (value: string) => {
-    const date = new Date(value)
-    const bucket = BUCKET_SIZES[bucketSize] || BUCKET_SIZES['5min']
-    
-    if (bucket.minutes < 60) {
-      return format(date, 'HH:mm')
-    } else if (bucket.minutes < 1440) {
-      return format(date, 'MMM d HH:mm')
-    } else {
-      return format(date, 'MMM d')
-    }
-  }
-
-  const formatTooltipLabel = (value: string) => {
-    const date = new Date(value)
-    const bucket = BUCKET_SIZES[bucketSize] || BUCKET_SIZES['5min']
-    
-    if (bucket.minutes < 60) {
-      return format(date, 'MMM d, HH:mm')
-    } else if (bucket.minutes < 1440) {
-      return format(date, 'MMM d, HH:mm')
-    } else {
-      return format(date, 'MMM d, yyyy')
-    }
-  }
 
   return (
     <Card className="@container/card">
@@ -231,119 +181,22 @@ export function ChartLatencyPercentiles({
           </TabsList>
           
           <TabsContent value={selectedTab} className="mt-0">
-            <ChartContainer
-              config={chartConfig}
-              className="aspect-auto h-[300px] w-full"
-            >
-              <AreaChart
-                accessibilityLayer
-                data={processChartData}
-                margin={{
-                  left: 12,
-                  right: 12,
-                }}
-              >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  minTickGap={32}
-                  tickFormatter={formatXAxis}
-                />
-                <YAxis
-                  yAxisId="latency"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tickFormatter={(value) => `${value}ms`}
-                />
-                <YAxis
-                  yAxisId="count"
-                  orientation="right"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tickFormatter={(value) => `${value}`}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={formatTooltipLabel}
-                      indicator="dot"
-                    />
-                  }
-                />
-                <ChartLegend content={<ChartLegendContent />} />
-                <Area
-                  dataKey="max"
-                  type="linear"
-                  fill="var(--color-max)"
-                  fillOpacity={0.1}
-                  stroke="var(--color-max)"
-                  strokeWidth={1.5}
-                  strokeDasharray="3 3"
-                  yAxisId="latency"
-                />
-                <Area
-                  dataKey="p99"
-                  type="linear"
-                  fill="var(--color-p99)"
-                  fillOpacity={0.2}
-                  stroke="var(--color-p99)"
-                  strokeWidth={2}
-                  yAxisId="latency"
-                />
-                <Area
-                  dataKey="p95"
-                  type="linear"
-                  fill="var(--color-p95)"
-                  fillOpacity={0.3}
-                  stroke="var(--color-p95)"
-                  strokeWidth={2}
-                  yAxisId="latency"
-                />
-                <Area
-                  dataKey="avg"
-                  type="linear"
-                  fill="var(--color-avg)"
-                  fillOpacity={0.2}
-                  stroke="var(--color-avg)"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  yAxisId="latency"
-                />
-                <Area
-                  dataKey="p50"
-                  type="linear"
-                  fill="var(--color-p50)"
-                  fillOpacity={0.4}
-                  stroke="var(--color-p50)"
-                  strokeWidth={2}
-                  yAxisId="latency"
-                />
-                <Area
-                  dataKey="min"
-                  type="linear"
-                  fill="var(--color-min)"
-                  fillOpacity={0.1}
-                  stroke="var(--color-min)"
-                  strokeWidth={1.5}
-                  strokeDasharray="3 3"
-                  yAxisId="latency"
-                />
-                <Line
-                  dataKey="count"
-                  type="linear"
-                  stroke="var(--color-count)"
-                  strokeWidth={2}
-                  dot={false}
-                  yAxisId="count"
-                />
-              </AreaChart>
-            </ChartContainer>
+            <LineChart
+              className="h-[300px]"
+              data={processChartData}
+              index="date"
+              categories={["Min", "p50", "p95", "p99", "Average", "Max"]}
+              colors={["cyan", "blue", "violet", "fuchsia", "amber", "pink"]}
+              valueFormatter={(value: number) => `${value.toFixed(2)}ms`}
+              yAxisWidth={60}
+              showLegend={true}
+              showGridLines={true}
+              autoMinValue={true}
+              connectNulls={false}
+              showXAxis={true}
+              showYAxis={true}
+              tickGap={32}
+            />
           </TabsContent>
         </Tabs>
       </CardContent>

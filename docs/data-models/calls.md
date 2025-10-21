@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `calls` table tracks all incoming calls to Voiceify agents. Each call record captures the complete lifecycle from initial connection through completion, including transcripts, usage metrics, and recordings.
+The `calls` table tracks all incoming calls to Clearsky AI agents. Each call record captures the complete lifecycle from initial connection through completion, including transcripts, usage metrics, and recordings.
 
 ## Table: `calls`
 

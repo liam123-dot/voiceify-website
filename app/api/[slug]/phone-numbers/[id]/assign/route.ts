@@ -94,7 +94,7 @@ export async function POST(request: Request, context: RouteContext) {
               pin: '', // No PIN required
             },
             {
-              name: 'Voiceify Dispatch Rule',
+              name: 'Clearsky AI Dispatch Rule',
               metadata: JSON.stringify({
                 organizationId: organizationId,
               }),

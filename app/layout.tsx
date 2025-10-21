@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Voiceify",
-  description: "Voiceify - AI Voice Agent Platform!",
+  title: "Clearsky AI",
+  description: "Clearsky AI - AI Voice Agent Platform!",
 };
 
 export default function RootLayout({

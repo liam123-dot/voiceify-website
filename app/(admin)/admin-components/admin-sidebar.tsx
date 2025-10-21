@@ -51,7 +51,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <Link href="/admin" prefetch={true}>
-                <span className="text-base font-semibold">Voiceify Admin</span>
+                <span className="text-base font-semibold">Clearsky AI Admin</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
