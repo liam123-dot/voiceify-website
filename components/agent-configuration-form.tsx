@@ -69,11 +69,11 @@ const formSchema = z.object({
   ttsVoiceId: z.string().optional(), // Voice ID: "EXAVITQu4vr4xnSDxMaL"
   
   // ElevenLabs advanced TTS settings
-  ttsStability: z.number().min(0).max(1).optional(),
+  ttsStability: z.number().min(0.25).max(1).optional(),
   ttsSimilarityBoost: z.number().min(0).max(1).optional(),
-  ttsStyle: z.number().min(0).max(1).optional(),
+  ttsStyle: z.number().min(0).max(0.75).optional(),
   ttsUseSpeakerBoost: z.boolean().optional(),
-  ttsSpeed: z.number().min(0.25).max(4.0).optional(),
+  ttsSpeed: z.number().min(0.7).max(1.2).optional(),
   
   // Common fields
   enableTranscription: z.boolean(),
@@ -1159,7 +1159,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                             </div>
                             <FormControl>
                               <Slider
-                                min={0}
+                                min={0.25}
                                 max={1}
                                 step={0.05}
                                 value={[field.value ?? 0.5]}
@@ -1168,7 +1168,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                               />
                             </FormControl>
                             <FormDescription>
-                              Controls consistency. Lower = more variable/emotional, Higher = more stable/monotone
+                              Controls consistency. 0.25 (most variable/emotional) to 1.0 (most stable/monotone)
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1220,7 +1220,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                             <FormControl>
                               <Slider
                                 min={0}
-                                max={1}
+                                max={0.75}
                                 step={0.05}
                                 value={[field.value ?? 0.0]}
                                 onValueChange={(value) => field.onChange(value[0])}
@@ -1228,7 +1228,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                               />
                             </FormControl>
                             <FormDescription>
-                              Expressiveness level. Higher = more expressive (may reduce stability)
+                              Expressiveness level. 0 (neutral) to 0.75 (highly expressive, may reduce stability)
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1271,8 +1271,8 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                             </div>
                             <FormControl>
                               <Slider
-                                min={0.25}
-                                max={4.0}
+                                min={0.7}
+                                max={1.2}
                                 step={0.05}
                                 value={[field.value ?? 1.0]}
                                 onValueChange={(value) => field.onChange(value[0])}
@@ -1280,7 +1280,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                               />
                             </FormControl>
                             <FormDescription>
-                              Playback speed. 0.25x (slowest) to 4.0x (fastest), 1.0x = normal
+                              Playback speed. 0.7x (slower) to 1.2x (faster), 1.0x = normal
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
