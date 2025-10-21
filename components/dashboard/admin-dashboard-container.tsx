@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { ChartAreaInteractive } from '@/components/chart-area-interactive'
 import { ChartBarSegmented } from '@/components/chart-bar-segmented'
-import { ChartKnowledgeLatency } from '@/components/chart-knowledge-latency'
-import { ChartKnowledgeLatencyBreakdown } from '@/components/chart-knowledge-latency-breakdown'
+import { ChartLatencyPercentiles } from '@/components/chart-latency-percentiles'
 import { SectionCards } from '@/components/section-cards'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -59,11 +59,30 @@ interface AdminDashboardContainerProps {
 }
 
 export function AdminDashboardContainer({ organizations }: AdminDashboardContainerProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  
   const [selectedSlug, setSelectedSlug] = useState<string>('all')
   const [isSegmented, setIsSegmented] = useState(false)
-  const [showLatencyBreakdown, setShowLatencyBreakdown] = useState(false)
   const [timeRange, setTimeRange] = useState('7d')
   const [groupBy, setGroupBy] = useState<'day' | 'hour'>('day')
+  const [bucketSize, setBucketSize] = useState(searchParams.get('bucketSize') || '5min')
+  const [lookbackPeriod, setLookbackPeriod] = useState(searchParams.get('lookbackPeriod') || '12h')
+  const [selectedLatencyTab, setSelectedLatencyTab] = useState<'overall' | 'supabase' | 'embedding'>('overall')
+
+  const handleBucketSizeChange = (size: string) => {
+    setBucketSize(size)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('bucketSize', size)
+    router.push(`?${params.toString()}`, { scroll: false })
+  }
+
+  const handleLookbackPeriodChange = (period: string) => {
+    setLookbackPeriod(period)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('lookbackPeriod', period)
+    router.push(`?${params.toString()}`, { scroll: false })
+  }
 
   // Fetch analytics data with React Query
   const { data, isLoading } = useQuery<AnalyticsResponse>({
@@ -190,37 +209,16 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
           />
         )}
 
-        {/* Knowledge Retrieval Latency Charts */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Switch
-              id="latency-breakdown-toggle"
-              checked={showLatencyBreakdown}
-              onCheckedChange={setShowLatencyBreakdown}
-            />
-            <Label htmlFor="latency-breakdown-toggle" className="text-sm font-medium cursor-pointer">
-              Show latency breakdown (Embedding + Supabase)
-            </Label>
-          </div>
-          
-          {showLatencyBreakdown ? (
-            <ChartKnowledgeLatencyBreakdown
-              events={knowledgeEvents}
-              timeRange={timeRange}
-              groupBy={groupBy}
-              onTimeRangeChange={setTimeRange}
-              onGroupByChange={setGroupBy}
-            />
-          ) : (
-            <ChartKnowledgeLatency
-              events={knowledgeEvents}
-              timeRange={timeRange}
-              groupBy={groupBy}
-              onTimeRangeChange={setTimeRange}
-              onGroupByChange={setGroupBy}
-            />
-          )}
-        </div>
+        {/* Knowledge Retrieval Latency Percentiles Chart */}
+        <ChartLatencyPercentiles
+          events={knowledgeEvents}
+          bucketSize={bucketSize}
+          lookbackPeriod={lookbackPeriod}
+          selectedTab={selectedLatencyTab}
+          onBucketSizeChange={handleBucketSizeChange}
+          onLookbackPeriodChange={handleLookbackPeriodChange}
+          onTabChange={setSelectedLatencyTab}
+        />
       </div>
     </div>
   )
