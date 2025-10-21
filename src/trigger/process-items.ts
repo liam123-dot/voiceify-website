@@ -133,11 +133,7 @@ async function fetchTextFromURLWithFirecrawl(url: string): Promise<string> {
     logger.log("Starting Firecrawl scrape", { url });
 
     // Scrape the URL with Firecrawl
-    const scrapeResult = await firecrawl.scrapeUrl(url, {
-      formats: ["markdown", "html"],
-      onlyMainContent: true, // Extract only the main content, removing headers, footers, etc.
-      waitFor: 1000, // Wait for JavaScript to load (in milliseconds)
-    });
+    const scrapeResult = await firecrawl.scrapeUrl(url);
 
     if (!scrapeResult.success) {
       throw new Error("Firecrawl scrape failed");
