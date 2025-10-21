@@ -1,7 +1,6 @@
 // Embedding and Chunking Utilities
 
-import { Tiktoken } from 'tiktoken/lite';
-import cl100k_base from 'tiktoken/encoders/cl100k_base.json';
+import { encode, decode } from 'gpt-tokenizer'
 import OpenAI from 'openai';
 import type { DocumentChunk, EmbeddingResult } from '@/types/knowledge-base';
 
@@ -19,18 +18,9 @@ function getOpenAIClient(): OpenAI {
   return openaiClient;
 }
 
-// Create tiktoken encoding instance for cl100k_base (used by text-embedding-3-small)
-function getEncoding(): Tiktoken {
-  return new Tiktoken(
-    cl100k_base.bpe_ranks,
-    cl100k_base.special_tokens,
-    cl100k_base.pat_str
-  );
-}
-
 /**
  * Chunk text into smaller pieces based on token count with overlap
- * Uses tiktoken for accurate token counting
+ * Uses gpt-tokenizer for accurate token counting
  * @param text - The text to chunk
  * @param chunkSize - Target size in tokens per chunk
  * @param overlap - Number of overlapping tokens between chunks
@@ -45,82 +35,72 @@ export async function chunkText(
     return [];
   }
 
-  // Use cl100k_base encoding (used by text-embedding-3-small)
-  const encoding = getEncoding();
-  
-  try {
-    // Encode the entire text to tokens
-    const tokens = encoding.encode(text);
-    const totalTokens = tokens.length;
+  // Encode the entire text to tokens
+  const tokens = encode(text);
+  const totalTokens = tokens.length;
 
-    // If text is shorter than chunk size, return as single chunk
-    if (totalTokens <= chunkSize) {
-      encoding.free();
-      return [{
-        content: text,
-        chunkIndex: 0,
-        chunkTotal: 1,
-        tokenCount: totalTokens,
-      }];
-    }
+  // If text is shorter than chunk size, return as single chunk
+  if (totalTokens <= chunkSize) {
+    return [{
+      content: text,
+      chunkIndex: 0,
+      chunkTotal: 1,
+      tokenCount: totalTokens,
+    }];
+  }
 
-    const chunks: DocumentChunk[] = [];
-    let startIdx = 0;
-    let chunkIndex = 0;
+  const chunks: DocumentChunk[] = [];
+  let startIdx = 0;
+  let chunkIndex = 0;
 
-    while (startIdx < totalTokens) {
-      // Get chunk tokens
-      const endIdx = Math.min(startIdx + chunkSize, totalTokens);
-      const chunkTokens = tokens.slice(startIdx, endIdx);
+  while (startIdx < totalTokens) {
+    // Get chunk tokens
+    const endIdx = Math.min(startIdx + chunkSize, totalTokens);
+    const chunkTokens = tokens.slice(startIdx, endIdx);
+    
+    // Decode tokens back to text
+    const chunkText = decode(chunkTokens);
+    
+    // Try to split at sentence boundary if not at the end
+    let finalChunkText = chunkText;
+    let actualTokenCount = chunkTokens.length;
+    
+    if (endIdx < totalTokens) {
+      // Look for sentence boundaries (. ! ? followed by space or newline)
+      const sentenceEndings = /[.!?][\s\n]/g;
+      const matches = Array.from(chunkText.matchAll(sentenceEndings));
       
-      // Decode tokens back to text
-      const chunkText = new TextDecoder().decode(encoding.decode(chunkTokens));
-      
-      // Try to split at sentence boundary if not at the end
-      let finalChunkText = chunkText;
-      let actualTokenCount = chunkTokens.length;
-      
-      if (endIdx < totalTokens) {
-        // Look for sentence boundaries (. ! ? followed by space or newline)
-        const sentenceEndings = /[.!?][\s\n]/g;
-        const matches = Array.from(chunkText.matchAll(sentenceEndings));
+      if (matches.length > 0) {
+        // Find the last sentence boundary in the last 20% of the chunk
+        const cutoffPoint = Math.floor(chunkText.length * 0.8);
+        const viableMatches = matches.filter((m: RegExpMatchArray) => (m.index || 0) > cutoffPoint);
         
-        if (matches.length > 0) {
-          // Find the last sentence boundary in the last 20% of the chunk
-          const cutoffPoint = Math.floor(chunkText.length * 0.8);
-          const viableMatches = matches.filter(m => (m.index || 0) > cutoffPoint);
-          
-          if (viableMatches.length > 0) {
-            const lastMatch = viableMatches[viableMatches.length - 1];
-            const cutPoint = (lastMatch.index || 0) + lastMatch[0].length;
-            finalChunkText = chunkText.substring(0, cutPoint);
-            actualTokenCount = encoding.encode(finalChunkText).length;
-          }
+        if (viableMatches.length > 0) {
+          const lastMatch = viableMatches[viableMatches.length - 1];
+          const cutPoint = (lastMatch.index || 0) + lastMatch[0].length;
+          finalChunkText = chunkText.substring(0, cutPoint);
+          actualTokenCount = encode(finalChunkText).length;
         }
       }
-
-      chunks.push({
-        content: finalChunkText.trim(),
-        chunkIndex,
-        tokenCount: actualTokenCount,
-      });
-
-      // Move start index forward, accounting for overlap
-      startIdx = startIdx + actualTokenCount - overlap;
-      chunkIndex++;
     }
 
-    // Set total count on all chunks
-    chunks.forEach(chunk => {
-      chunk.chunkTotal = chunks.length;
+    chunks.push({
+      content: finalChunkText.trim(),
+      chunkIndex,
+      tokenCount: actualTokenCount,
     });
 
-    encoding.free();
-    return chunks;
-  } catch (error) {
-    encoding.free();
-    throw error;
+    // Move start index forward, accounting for overlap
+    startIdx = startIdx + actualTokenCount - overlap;
+    chunkIndex++;
   }
+
+  // Set total count on all chunks
+  chunks.forEach(chunk => {
+    chunk.chunkTotal = chunks.length;
+  });
+
+  return chunks;
 }
 
 /**
