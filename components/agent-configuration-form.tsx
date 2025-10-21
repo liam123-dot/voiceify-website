@@ -1114,9 +1114,11 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                                 </RadioGroup>
                               </FormControl>
                             )}
+                          </>
+                        )}
                             
-                            {/* Close button when voice list is open and a voice is selected */}
-                            {field.value && (
+                        {/* Close button when voice list is open and a voice is selected */}
+                        {field.value && (
                               <div className="mt-4 flex justify-end">
                                 <Button
                                   type="button"
