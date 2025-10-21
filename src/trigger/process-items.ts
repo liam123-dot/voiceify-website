@@ -2,7 +2,7 @@ import { logger, schemaTask } from "@trigger.dev/sdk/v3";
 import z from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
-import { processTextWithEmbeddings, extractTextFromHTML } from "@/lib/embeddings/processor";
+import { processTextWithEmbeddings } from "@/lib/embeddings/processor";
 
 /**
  * Create Supabase client for Trigger.dev tasks
@@ -75,36 +75,42 @@ async function updateItemStatus(
 }
 
 /**
- * Fetch and extract text from a URL
+ * Fetch and extract text from a URL using the scraping API endpoint
  */
 async function fetchTextFromURL(url: string): Promise<string> {
-  logger.log("Fetching URL", { url });
+  logger.log("Fetching URL via API", { url });
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    throw new Error("NEXT_PUBLIC_APP_URL environment variable is not configured");
+  }
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(`${appUrl}/api/website/scrape`, {
+      method: "POST",
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; KnowledgeBaseBot/1.0)',
+        "Content-Type": "application/json",
       },
-      signal: AbortSignal.timeout(30000), // 30 second timeout
+      body: JSON.stringify({ url }),
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP ${response.status}`);
     }
 
-    const html = await response.text();
-    const text = extractTextFromHTML(html);
-    
-    if (!text || text.trim().length === 0) {
-      throw new Error("No text content extracted from URL");
+    const data = await response.json();
+
+    if (!data.success || !data.content) {
+      throw new Error("No content returned from scraping API");
     }
 
-    logger.log("Successfully extracted text from URL", { 
-      textLength: text.length,
+    logger.log("Successfully fetched URL", { 
+      textLength: data.content.length,
       url 
     });
 
-    return text;
+    return data.content;
   } catch (error) {
     const errorMsg = error instanceof Error 
       ? error.message 
@@ -115,64 +121,11 @@ async function fetchTextFromURL(url: string): Promise<string> {
 }
 
 /**
- * Fetch and extract text from a URL using Firecrawl API directly
- * Using direct API calls instead of SDK to reduce memory overhead
- */
-async function fetchTextFromURLWithFirecrawl(url: string): Promise<string> {
-  const apiKey = process.env.FIRECRAWL_API_KEY;
-  if (!apiKey) {
-    throw new Error("Firecrawl API key not configured");
-  }
-
-  logger.log("Fetching URL with Firecrawl", { url });
-
-  const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      url: url,
-      formats: ["markdown"],
-    }),
-  });
-  console.log('response', response);
-  console.log(response.body);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Firecrawl API error ${response.status}: ${errorText}`);
-  }
-
-  const result = await response.json();
-
-  if (!result.success || !result.data?.markdown) {
-    throw new Error("No content extracted from URL via Firecrawl");
-  }
-
-  logger.log("Successfully fetched URL", { 
-    url, 
-    textLength: result.data.markdown.length 
-  });
-
-  return result.data.markdown;
-}
-
-/**
  * Extract text content based on item type
  */
 async function extractTextFromItem(item: KnowledgeBaseItem): Promise<string> {
   if (item.type === "url" && item.url) {
-    try {
-      return await fetchTextFromURLWithFirecrawl(item.url);
-    } catch (firecrawlError) {
-      logger.warn("Firecrawl failed, falling back to basic fetch", { 
-        error: firecrawlError,
-        url: item.url 
-      });
-      return await fetchTextFromURL(item.url);
-    }
+    return await fetchTextFromURL(item.url);
   } 
   
   if (item.type === "text" && item.text_content) {

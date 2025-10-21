@@ -20,6 +20,8 @@ export default authkitMiddleware({
       '/api/agents/callback',
       '/api/agents/:path*/tools',
       '/api/tools/:path*/execute',
+      // Website scraping route (for Trigger tasks)
+      '/api/website/scrape',
       '/demo/:path*',
       '/demo'
     ],
