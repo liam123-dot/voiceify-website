@@ -3,6 +3,7 @@ import z from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
 import { processTextWithEmbeddings } from "@/lib/embeddings/processor";
+import { testFirecrawl } from "./test-firecrawl";
 
 /**
  * Create Supabase client for Trigger.dev tasks
@@ -75,42 +76,29 @@ async function updateItemStatus(
 }
 
 /**
- * Fetch and extract text from a URL using the scraping API endpoint
+ * Fetch and extract text from a URL using the testFirecrawl task
  */
 async function fetchTextFromURL(url: string): Promise<string> {
-  logger.log("Fetching URL via API", { url });
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!appUrl) {
-    throw new Error("NEXT_PUBLIC_APP_URL environment variable is not configured");
-  }
+  logger.log("Fetching URL via Firecrawl task", { url });
 
   try {
-    const response = await fetch(`${appUrl}/api/website/scrape`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url }),
-    });
+    // Trigger the Firecrawl task and wait for the result
+    const result = await testFirecrawl.triggerAndWait({ url });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `HTTP ${response.status}`);
+    if (!result.ok) {
+      throw new Error(`Firecrawl task failed: ${result.error}`);
     }
 
-    const data = await response.json();
-
-    if (!data.success || !data.content) {
-      throw new Error("No content returned from scraping API");
+    if (!result.output.success || !result.output.markdown) {
+      throw new Error("No content returned from Firecrawl task");
     }
 
     logger.log("Successfully fetched URL", { 
-      textLength: data.content.length,
+      textLength: result.output.markdown.length,
       url 
     });
 
-    return data.content;
+    return result.output.markdown;
   } catch (error) {
     const errorMsg = error instanceof Error 
       ? error.message 
