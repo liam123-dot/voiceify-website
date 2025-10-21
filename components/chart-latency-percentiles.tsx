@@ -253,10 +253,19 @@ export function ChartLatencyPercentiles({
                   tickFormatter={formatXAxis}
                 />
                 <YAxis
+                  yAxisId="latency"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
                   tickFormatter={(value) => `${value}ms`}
+                />
+                <YAxis
+                  yAxisId="count"
+                  orientation="right"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => `${value}`}
                 />
                 <ChartTooltip
                   cursor={false}
@@ -276,6 +285,7 @@ export function ChartLatencyPercentiles({
                   stroke="var(--color-max)"
                   strokeWidth={1.5}
                   strokeDasharray="3 3"
+                  yAxisId="latency"
                 />
                 <Area
                   dataKey="p99"
@@ -284,6 +294,7 @@ export function ChartLatencyPercentiles({
                   fillOpacity={0.2}
                   stroke="var(--color-p99)"
                   strokeWidth={2}
+                  yAxisId="latency"
                 />
                 <Area
                   dataKey="p95"
@@ -292,6 +303,7 @@ export function ChartLatencyPercentiles({
                   fillOpacity={0.3}
                   stroke="var(--color-p95)"
                   strokeWidth={2}
+                  yAxisId="latency"
                 />
                 <Area
                   dataKey="avg"
@@ -301,6 +313,7 @@ export function ChartLatencyPercentiles({
                   stroke="var(--color-avg)"
                   strokeWidth={2}
                   strokeDasharray="5 5"
+                  yAxisId="latency"
                 />
                 <Area
                   dataKey="p50"
@@ -309,6 +322,7 @@ export function ChartLatencyPercentiles({
                   fillOpacity={0.4}
                   stroke="var(--color-p50)"
                   strokeWidth={2}
+                  yAxisId="latency"
                 />
                 <Area
                   dataKey="min"
@@ -318,6 +332,15 @@ export function ChartLatencyPercentiles({
                   stroke="var(--color-min)"
                   strokeWidth={1.5}
                   strokeDasharray="3 3"
+                  yAxisId="latency"
+                />
+                <Line
+                  dataKey="count"
+                  type="monotone"
+                  stroke="var(--color-count)"
+                  strokeWidth={2}
+                  dot={false}
+                  yAxisId="count"
                 />
               </AreaChart>
             </ChartContainer>

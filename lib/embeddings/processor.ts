@@ -1,22 +1,24 @@
 // Embedding and Chunking Utilities
 
 import { encode, decode } from 'gpt-tokenizer'
-import OpenAI from 'openai';
+// Commented out - switched to Voyage AI embeddings
+// import OpenAI from 'openai';
 import type { DocumentChunk, EmbeddingResult } from '@/types/knowledge-base';
 
-// Initialize OpenAI client
-let openaiClient: OpenAI | null = null;
-
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is not configured');
-    }
-    openaiClient = new OpenAI({ apiKey });
-  }
-  return openaiClient;
-}
+// Commented out - switched to Voyage AI embeddings
+// // Initialize OpenAI client
+// let openaiClient: OpenAI | null = null;
+// 
+// function getOpenAIClient(): OpenAI {
+//   if (!openaiClient) {
+//     const apiKey = process.env.OPENAI_API_KEY;
+//     if (!apiKey) {
+//       throw new Error('OPENAI_API_KEY environment variable is not configured');
+//     }
+//     openaiClient = new OpenAI({ apiKey });
+//   }
+//   return openaiClient;
+// }
 
 /**
  * Chunk text into smaller pieces based on token count with overlap
@@ -104,7 +106,7 @@ export async function chunkText(
 }
 
 /**
- * Generate embedding for text using OpenAI
+ * Generate embedding for text using Voyage AI
  * @param text - The text to embed
  * @returns Embedding vector and token count
  */
@@ -115,21 +117,37 @@ export async function generateEmbedding(
     throw new Error('Text cannot be empty');
   }
 
-  const client = getOpenAIClient();
+  const apiKey = process.env.VOYAGE_API_KEY;
+  if (!apiKey) {
+    throw new Error('VOYAGE_API_KEY environment variable is not configured');
+  }
 
   try {
-    const response = await client.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: text,
-      encoding_format: 'float',
+    const response = await fetch('https://api.voyageai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: [text],
+        model: 'voyage-3.5-lite',
+      }),
     });
 
-    if (!response.data || response.data.length === 0) {
-      throw new Error('No embedding returned from OpenAI');
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Voyage AI API error ${response.status}: ${errorText}`);
     }
 
-    const embedding = response.data[0].embedding;
-    const tokenCount = response.usage.total_tokens;
+    const data = await response.json();
+
+    if (!data.data || data.data.length === 0) {
+      throw new Error('No embedding returned from Voyage AI');
+    }
+
+    const embedding = data.data[0].embedding;
+    const tokenCount = data.usage?.total_tokens || 0;
 
     return {
       embedding,
@@ -142,6 +160,47 @@ export async function generateEmbedding(
     throw new Error('Failed to generate embedding: Unknown error');
   }
 }
+
+// Commented out - old OpenAI embedding logic
+// /**
+//  * Generate embedding for text using OpenAI
+//  * @param text - The text to embed
+//  * @returns Embedding vector and token count
+//  */
+// export async function generateEmbedding(
+//   text: string
+// ): Promise<EmbeddingResult> {
+//   if (!text || text.trim().length === 0) {
+//     throw new Error('Text cannot be empty');
+//   }
+// 
+//   const client = getOpenAIClient();
+// 
+//   try {
+//     const response = await client.embeddings.create({
+//       model: 'text-embedding-3-small',
+//       input: text,
+//       encoding_format: 'float',
+//     });
+// 
+//     if (!response.data || response.data.length === 0) {
+//       throw new Error('No embedding returned from OpenAI');
+//     }
+// 
+//     const embedding = response.data[0].embedding;
+//     const tokenCount = response.usage.total_tokens;
+// 
+//     return {
+//       embedding,
+//       tokenCount,
+//     };
+//   } catch (error) {
+//     if (error instanceof Error) {
+//       throw new Error(`Failed to generate embedding: ${error.message}`);
+//     }
+//     throw new Error('Failed to generate embedding: Unknown error');
+//   }
+// }
 
 /**
  * Process text: chunk and generate embeddings
