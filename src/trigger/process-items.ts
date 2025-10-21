@@ -1,10 +1,29 @@
-import { logger, schemaTask } from "@trigger.dev/sdk/v3";
+import { logger, schemaTask, tasks, task } from "@trigger.dev/sdk/v3";
 import z from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClientNoCookies } from "@/lib/supabase/server";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
 import { processTextWithEmbeddings, extractTextFromHTML } from "@/lib/embeddings/processor";
 import FirecrawlApp from "@mendable/firecrawl-js";
+
+import { ResourceMonitor } from "./resource-monitor";
+
+// Middleware to enable the resource monitor
+tasks.middleware("resource-monitor", async ({ ctx, next }) => {
+  const resourceMonitor = new ResourceMonitor({
+    ctx,
+  });
+
+  // Only enable the resource monitor if the environment variable is set
+  if (process.env.RESOURCE_MONITOR_ENABLED === "1") {
+    resourceMonitor.startMonitoring(1_000);
+  }
+
+  await next();
+
+  resourceMonitor.stopMonitoring();
+});
+
 
 /**
  * Fetch knowledge base item from database
