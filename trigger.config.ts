@@ -27,8 +27,6 @@ export default defineConfig({
       vercelTeamId: process.env.VERCEL_TEAM_ID
     })],
     external: [
-      // WASM files
-      "tiktoken_bg.wasm",
       
       // Frontend/React dependencies - NOT needed in background tasks
       "react",
@@ -104,9 +102,6 @@ export default defineConfig({
       "twilio",
       "ragie",
       "openai", // Using Voyage AI via fetch instead
-      
-      // Firecrawl SDK - now using direct API
-      "@mendable/firecrawl-js",
       
       // Utilities not needed
       "date-fns",
