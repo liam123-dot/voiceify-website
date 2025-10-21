@@ -176,8 +176,9 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null)
   
   // Voice filter state
-  const [selectedAccent, setSelectedAccent] = useState<string>('all')
+  const [selectedAccent, setSelectedAccent] = useState<string>('british')
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all')
+  const [isVoiceListOpen, setIsVoiceListOpen] = useState(false)
 
   // Extract values from initial config with proper defaults
   const getInitialValues = (): FormValues => {
@@ -920,7 +921,57 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                         <FormDescription>
                           Select a voice from your ElevenLabs account
                         </FormDescription>
-                        
+
+                        {/* Display selected voice */}
+                        {field.value && !isVoiceListOpen && (
+                          <div className="rounded-lg border p-4 bg-muted/50">
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-1">
+                                <p className="text-sm font-medium">
+                                  {availableVoices.find(v => v.voiceId === field.value)?.name || 'Selected Voice'}
+                                </p>
+                                {availableVoices.find(v => v.voiceId === field.value)?.description && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {availableVoices.find(v => v.voiceId === field.value)?.description}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {availableVoices.find(v => v.voiceId === field.value)?.previewUrl && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      const voice = availableVoices.find(v => v.voiceId === field.value)
+                                      if (voice) playVoicePreview(voice.voiceId, voice.previewUrl)
+                                    }}
+                                    title={playingVoiceId === field.value ? 'Stop preview' : 'Play preview'}
+                                  >
+                                    {playingVoiceId === field.value ? (
+                                      <Pause className="h-4 w-4" />
+                                    ) : (
+                                      <Play className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setIsVoiceListOpen(true)}
+                                >
+                                  Change Voice
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Show voice browser when changing or no voice selected */}
+                        {(isVoiceListOpen || !field.value) && (
+                        <>
                         {isLoadingVoices ? (
                           <div className="flex items-center justify-center p-8">
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -955,13 +1006,13 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                                 <label className="text-sm font-medium">Filter by Accent</label>
                                 <Select value={selectedAccent} onValueChange={setSelectedAccent}>
                                   <SelectTrigger>
-                                    <SelectValue placeholder="All accents" />
+                                    <SelectValue placeholder="British" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="all">All accents</SelectItem>
                                     {accents.map((accent) => (
                                       <SelectItem key={accent} value={accent}>
-                                        {accent}
+                                        {accent.charAt(0).toUpperCase() + accent.slice(1)}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -978,7 +1029,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                                     <SelectItem value="all">All languages</SelectItem>
                                     {languages.map((language) => (
                                       <SelectItem key={language} value={language}>
-                                        {language}
+                                        {language.charAt(0).toUpperCase() + language.slice(1)}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -1062,6 +1113,19 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                               ))}
                                 </RadioGroup>
                               </FormControl>
+                            )}
+                            
+                            {/* Close button when voice list is open and a voice is selected */}
+                            {field.value && (
+                              <div className="mt-4 flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => setIsVoiceListOpen(false)}
+                                >
+                                  Done
+                                </Button>
+                              </div>
                             )}
                           </>
                         )}
