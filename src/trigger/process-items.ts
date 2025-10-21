@@ -1,11 +1,30 @@
 import { logger, schemaTask, tasks, task } from "@trigger.dev/sdk/v3";
 import z from "zod";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createServiceClientNoCookies } from "@/lib/supabase/server";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
 import { extractTextFromHTML } from "@/lib/embeddings/processor";
 
 import { ResourceMonitor } from "./resource-monitor";
+
+/**
+ * Create Supabase client for Trigger.dev tasks
+ * Cannot use Next.js-dependent server.ts in Trigger context
+ */
+function createSupabaseClient(): SupabaseClient {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Missing Supabase environment variables");
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
 
 // Helper to log memory usage
 function logMemoryUsage(label: string) {
@@ -453,7 +472,7 @@ export const processItem = schemaTask({
     logger.log("🚀 TASK START: Processing knowledge base item", { payload, ctx });
     logMemoryUsage("Task start");
 
-    const supabase = await createServiceClientNoCookies();
+    const supabase = createSupabaseClient();
     logger.log("✅ Supabase client created");
     
     let text: string | null = null;

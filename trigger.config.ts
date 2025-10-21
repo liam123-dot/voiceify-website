@@ -110,7 +110,7 @@ export default defineConfig({
       
       // Utilities not needed
       "date-fns",
-      "@supabase/ssr", // Using server client instead
+      "@supabase/ssr", // Not needed - using @supabase/supabase-js directly
     ]
   },
   dirs: ["./src/trigger"],
