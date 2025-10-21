@@ -1,10 +1,8 @@
-import { logger, schemaTask, tasks, task } from "@trigger.dev/sdk/v3";
+import { logger, schemaTask } from "@trigger.dev/sdk/v3";
 import z from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
-import { extractTextFromHTML } from "@/lib/embeddings/processor";
-
-import { ResourceMonitor } from "./resource-monitor";
+import { processTextWithEmbeddings, extractTextFromHTML } from "@/lib/embeddings/processor";
 
 /**
  * Create Supabase client for Trigger.dev tasks
@@ -25,34 +23,6 @@ function createSupabaseClient(): SupabaseClient {
     },
   });
 }
-
-// Helper to log memory usage
-function logMemoryUsage(label: string) {
-  const usage = process.memoryUsage();
-  logger.log(`Memory [${label}]`, {
-    heapUsed: `${Math.round(usage.heapUsed / 1024 / 1024)}MB`,
-    heapTotal: `${Math.round(usage.heapTotal / 1024 / 1024)}MB`,
-    rss: `${Math.round(usage.rss / 1024 / 1024)}MB`,
-    external: `${Math.round(usage.external / 1024 / 1024)}MB`,
-  });
-}
-
-// Middleware to enable the resource monitor
-tasks.middleware("resource-monitor", async ({ ctx, next }) => {
-  const resourceMonitor = new ResourceMonitor({
-    ctx,
-  });
-
-  // Only enable the resource monitor if the environment variable is set
-  // Reduced frequency to 5 seconds to minimize overhead
-  if (process.env.RESOURCE_MONITOR_ENABLED === "1") {
-    resourceMonitor.startMonitoring(5_000);
-  }
-
-  await next();
-
-  resourceMonitor.stopMonitoring();
-});
 
 
 /**
@@ -146,307 +116,114 @@ async function fetchTextFromURL(url: string): Promise<string> {
 
 /**
  * Fetch and extract text from a URL using Firecrawl API directly
- * Firecrawl provides better scraping with JavaScript rendering and cleaner content extraction
  * Using direct API calls instead of SDK to reduce memory overhead
  */
 async function fetchTextFromURLWithFirecrawl(url: string): Promise<string> {
-  logger.log("=== STEP 1: Starting Firecrawl fetch ===", { url });
-  logMemoryUsage("Before Firecrawl scrape");
-
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
-    logger.error("FIRECRAWL_API_KEY not configured");
     throw new Error("Firecrawl API key not configured");
   }
 
-  logger.log("=== STEP 2: API key validated ===");
+  logger.log("Fetching URL with Firecrawl", { url });
 
-  try {
-    const requestPayload = {
+  const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
       url: url,
-      formats: ["markdown"], // Only request markdown to minimize response size
-      maxAge: 0, // Force fresh content
-    };
+      formats: ["markdown"],
+      maxAge: 0,
+    }),
+  });
 
-    logger.log("=== STEP 3: Sending Firecrawl API request ===", { 
-      apiUrl: "https://api.firecrawl.dev/v2/scrape",
-      payload: requestPayload 
-    });
-
-    const fetchStartTime = Date.now();
-
-    // Call Firecrawl v2 API directly with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-
-    const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestPayload),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    const fetchDuration = Date.now() - fetchStartTime;
-    logger.log("=== STEP 4: Received response from Firecrawl ===", { 
-      status: response.status,
-      statusText: response.statusText,
-      duration: `${fetchDuration}ms`,
-      ok: response.ok,
-    });
-
-    if (!response.ok) {
-      logger.log("=== STEP 5: Response not OK, reading error text ===");
-      const errorText = await response.text();
-      logger.error("Firecrawl API error", { 
-        status: response.status, 
-        statusText: response.statusText,
-        error: errorText 
-      });
-      throw new Error(`Firecrawl API error ${response.status}: ${errorText}`);
-    }
-
-    logger.log("=== STEP 6: Parsing JSON response ===");
-    const parseStartTime = Date.now();
-    const result = await response.json();
-    const parseDuration = Date.now() - parseStartTime;
-    
-    logger.log("=== STEP 7: JSON parsed successfully ===", { 
-      duration: `${parseDuration}ms`,
-      hasData: !!result.data,
-      success: result.success,
-    });
-
-    if (!result.success) {
-      logger.error("Firecrawl scrape failed - success=false", { result });
-      throw new Error("Firecrawl scrape failed");
-    }
-
-    logger.log("=== STEP 8: Extracting markdown from result ===");
-    // Extract markdown from response
-    const markdown = result.data?.markdown;
-    
-    if (!markdown || markdown.trim().length === 0) {
-      logger.error("No markdown in response", { 
-        hasData: !!result.data,
-        dataKeys: result.data ? Object.keys(result.data) : [],
-      });
-      throw new Error("No text content extracted from URL via Firecrawl");
-    }
-
-    logger.log("=== STEP 9: Successfully extracted markdown ===", {
-      textLength: markdown.length,
-      url,
-      sourceURL: result.data?.metadata?.sourceURL,
-      statusCode: result.data?.metadata?.statusCode,
-      totalDuration: `${Date.now() - fetchStartTime}ms`,
-    });
-
-    logMemoryUsage("After Firecrawl scrape");
-    logger.log("=== STEP 10: Returning markdown (Firecrawl complete) ===");
-
-    return markdown;
-  } catch (error) {
-    const errorMsg = error instanceof Error 
-      ? error.message 
-      : "Unknown error";
-    
-    logger.error("=== FIRECRAWL ERROR ===", { 
-      error,
-      errorMessage: errorMsg,
-      errorName: error instanceof Error ? error.name : "Unknown",
-      url,
-    });
-    
-    throw new Error(`Failed to fetch URL with Firecrawl: ${errorMsg}`);
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Firecrawl API error ${response.status}: ${errorText}`);
   }
+
+  const result = await response.json();
+
+  if (!result.success || !result.data?.markdown) {
+    throw new Error("No content extracted from URL via Firecrawl");
+  }
+
+  logger.log("Successfully fetched URL", { 
+    url, 
+    textLength: result.data.markdown.length 
+  });
+
+  return result.data.markdown;
 }
 
 /**
  * Extract text content based on item type
  */
 async function extractTextFromItem(item: KnowledgeBaseItem): Promise<string> {
-  logger.log(">>> EXTRACT: Starting text extraction", { type: item.type, hasUrl: !!item.url });
-  
   if (item.type === "url" && item.url) {
-    logger.log(">>> EXTRACT: Processing URL type", { url: item.url });
-    // Try Firecrawl first, fall back to basic fetch if it fails
     try {
-      logger.log(">>> EXTRACT: Calling Firecrawl");
-      const result = await fetchTextFromURLWithFirecrawl(item.url);
-      logger.log(">>> EXTRACT: Firecrawl returned successfully", { resultLength: result.length });
-      return result;
+      return await fetchTextFromURLWithFirecrawl(item.url);
     } catch (firecrawlError) {
-      logger.warn(">>> EXTRACT: Firecrawl failed, falling back to basic fetch", { 
+      logger.warn("Firecrawl failed, falling back to basic fetch", { 
         error: firecrawlError,
         url: item.url 
       });
-      const fallbackResult = await fetchTextFromURL(item.url);
-      logger.log(">>> EXTRACT: Fallback fetch successful", { resultLength: fallbackResult.length });
-      return fallbackResult;
+      return await fetchTextFromURL(item.url);
     }
   } 
   
   if (item.type === "text" && item.text_content) {
-    logger.log(">>> EXTRACT: Using text content from item", { 
-      textLength: item.text_content.length 
-    });
     return item.text_content;
   } 
   
   if (item.type === "file" && item.file_location) {
-    logger.log(">>> EXTRACT: File type not implemented", { 
-      fileLocation: item.file_location,
-      fileType: item.file_type 
-    });
-    throw new Error("File processing is not yet implemented. Please use text or URL items for now.");
+    throw new Error("File processing is not yet implemented");
   }
   
-  logger.error(">>> EXTRACT: Unsupported item type", { type: item.type });
-  throw new Error(`Unsupported item type or missing data: ${item.type}`);
+  throw new Error(`Unsupported item type: ${item.type}`);
 }
 
 /**
- * Generate embeddings for text content in batches
- * Returns total number of chunks processed
+ * Store document chunks with embeddings in database
  */
-async function generateAndStoreEmbeddingsBatched(
+async function storeDocumentChunks(
   supabase: SupabaseClient,
   item: KnowledgeBaseItem,
-  text: string,
-  chunkSize: number,
-  chunkOverlap: number
+  chunks: Array<DocumentChunk & { embedding: number[] }>
 ): Promise<number> {
-  if (!text || text.trim().length === 0) {
-    throw new Error("No text content to process");
+  if (chunks.length === 0) {
+    return 0;
   }
 
-  logger.log("📊 BATCH: Starting batched text chunking and embedding generation", {
-    textLength: text.length,
-    chunkSize,
-    chunkOverlap
-  });
-  logMemoryUsage("Before chunking");
+  const documents = chunks.map((chunk) => ({
+    knowledge_base_id: item.knowledge_base_id,
+    knowledge_base_item_id: item.id,
+    content: chunk.content,
+    embedding: JSON.stringify(chunk.embedding),
+    chunk_index: chunk.chunkIndex,
+    chunk_total: chunk.chunkTotal,
+    token_count: chunk.tokenCount,
+    metadata: {},
+  }));
 
-  try {
-    // Import chunking and embedding functions
-    logger.log("📊 BATCH: Importing embedding processor functions");
-    const { chunkText, generateEmbedding } = await import("@/lib/embeddings/processor");
-    logger.log("✅ BATCH: Functions imported");
-    
-    // First, chunk the text
-    logger.log("📊 BATCH: Starting text chunking");
-    const chunks = await chunkText(text, chunkSize, chunkOverlap);
-    logger.log("✅ BATCH: Text chunked", { chunkCount: chunks.length });
-    
-    // Process and store in batches to avoid memory buildup
-    const BATCH_SIZE = 10;
-    let totalProcessed = 0;
-    const totalBatches = Math.ceil(chunks.length / BATCH_SIZE);
-    
-    logger.log(`📊 BATCH: Will process ${totalBatches} batches of ${BATCH_SIZE} chunks each`);
-    
-    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-      const batch = chunks.slice(i, i + BATCH_SIZE);
-      
-      logger.log(`🔄 BATCH ${batchNum}/${totalBatches}: Starting`, {
-        batchSize: batch.length,
-        startIndex: i,
-      });
-      
-      logMemoryUsage(`Before batch ${batchNum}`);
-      
-      // Generate embeddings for this batch
-      const batchWithEmbeddings: Array<DocumentChunk & { embedding: number[] }> = [];
-      
-      for (let j = 0; j < batch.length; j++) {
-        const chunk = batch[j];
-        logger.log(`  📝 Generating embedding ${j + 1}/${batch.length} in batch ${batchNum}`);
-        try {
-          const result = await generateEmbedding(chunk.content);
-          batchWithEmbeddings.push({
-            ...chunk,
-            embedding: result.embedding,
-            tokenCount: result.tokenCount,
-          });
-          logger.log(`  ✅ Embedding ${j + 1}/${batch.length} generated`);
-          
-          // Small delay to avoid rate limits
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-          logger.error(`  ❌ Embedding generation error for chunk ${j + 1}`, { error, chunkIndex: chunk.chunkIndex });
-          throw error;
-        }
-      }
-      
-      logger.log(`💾 BATCH ${batchNum}/${totalBatches}: Preparing to store ${batchWithEmbeddings.length} chunks`);
-      
-      // Store this batch immediately
-      const documentsToInsert = batchWithEmbeddings.map((chunk) => ({
-        knowledge_base_id: item.knowledge_base_id,
-        knowledge_base_item_id: item.id,
-        content: chunk.content,
-        embedding: JSON.stringify(chunk.embedding),
-        chunk_index: chunk.chunkIndex,
-        chunk_total: chunk.chunkTotal,
-        token_count: chunk.tokenCount,
-        metadata: {},
-      }));
-      
-      logger.log(`💾 BATCH ${batchNum}/${totalBatches}: Inserting into database`);
-      const { error: insertError } = await supabase
-        .from("knowledge_base_documents")
-        .insert(documentsToInsert);
-      
-      if (insertError) {
-        logger.error(`❌ BATCH ${batchNum}: Database insertion error`, { error: insertError });
-        throw new Error(`Database error: ${insertError.message}`);
-      }
-      
-      totalProcessed += batchWithEmbeddings.length;
-      
-      logger.log(`✅ BATCH ${batchNum}/${totalBatches}: Stored successfully`, {
-        chunksInBatch: batchWithEmbeddings.length,
-        totalProcessed,
-        remainingBatches: totalBatches - batchNum,
-      });
-      
-      // Explicitly clear batch arrays to help GC
-      batchWithEmbeddings.length = 0;
-      documentsToInsert.length = 0;
-      
-      logMemoryUsage(`After batch ${batchNum}`);
-      
-      // Hint to GC (only works if node is run with --expose-gc)
-      if (global.gc) {
-        global.gc();
-      }
-    }
-    
-    logger.log("🎉 BATCH: All batches processed successfully", { 
-      totalChunks: totalProcessed,
-      totalBatches,
-    });
+  const { error: insertError } = await supabase
+    .from("knowledge_base_documents")
+    .insert(documents);
 
-    return totalProcessed;
-  } catch (error) {
-    const errorMsg = error instanceof Error 
-      ? error.message 
-      : "Failed to generate embeddings";
-    logger.error("❌ BATCH: Embedding generation error", { error });
-    throw new Error(errorMsg);
+  if (insertError) {
+    throw new Error(`Database error: ${insertError.message}`);
   }
+
+  logger.log("Stored chunks in database", { count: documents.length });
+
+  return documents.length;
 }
 
 
 /**
  * Main task: Process a knowledge base item
- * Orchestrates the entire processing pipeline with memory optimization
  */
 export const processItem = schemaTask({
   id: "process-item",
@@ -463,76 +240,51 @@ export const processItem = schemaTask({
     maxTimeoutInMs: 10000,
     factor: 2,
     randomize: true,
-    // Retry on larger machine if OOM occurs
     outOfMemory: {
       machine: "large-2x",
     },
   },
-  run: async (payload: { knowledgeBaseItemId: string }, { ctx }) => {
-    logger.log("🚀 TASK START: Processing knowledge base item", { payload, ctx });
-    logMemoryUsage("Task start");
-
+  run: async (payload: { knowledgeBaseItemId: string }) => {
     const supabase = createSupabaseClient();
-    logger.log("✅ Supabase client created");
     
-    let text: string | null = null;
-    
-    try {
-      // Fetch the item
-      logger.log("📥 Fetching knowledge base item from database");
-      const item = await fetchKnowledgeBaseItem(supabase, payload.knowledgeBaseItemId);
-      
-      logger.log("✅ Found knowledge base item", { 
-        id: item.id, 
-        type: item.type, 
-        name: item.name,
-        status: item.status,
-        chunkSize: item.chunk_size,
-        chunkOverlap: item.chunk_overlap,
-        url: item.url,
-      });
+    // Fetch the item
+    const item = await fetchKnowledgeBaseItem(supabase, payload.knowledgeBaseItemId);
+    logger.log("Processing knowledge base item", { 
+      id: item.id, 
+      type: item.type, 
+      name: item.name,
+    });
 
+    try {
       // Update status to processing
-      logger.log("📝 Updating status to processing");
       await updateItemStatus(supabase, item.id, "processing");
-      logger.log("✅ Status updated to processing");
 
       // Extract text from item
-      logger.log("🔍 Starting text extraction from item");
-      text = await extractTextFromItem(item);
-      logger.log("✅ Text extraction complete", {
-        textLength: text.length,
-      });
-      
-      logMemoryUsage("After text extraction");
+      const text = await extractTextFromItem(item);
+      logger.log("Text extracted", { textLength: text.length });
 
-      // Generate embeddings and store in batches (all in one function to prevent holding all in memory)
-      logger.log("🧠 Starting batched embedding generation and storage");
-      const chunksCreated = await generateAndStoreEmbeddingsBatched(
-        supabase,
-        item,
+      // Generate embeddings
+      const chunksWithEmbeddings = await processTextWithEmbeddings(
         text,
         item.chunk_size || 512,
         item.chunk_overlap || 50
       );
-      logger.log("✅ Batched embedding generation complete", { chunksCreated });
+      logger.log("Embeddings generated", { chunkCount: chunksWithEmbeddings.length });
 
-      // Explicitly clear text to help GC
-      text = null;
-      
-      logMemoryUsage("After embedding generation and storage");
+      // Store chunks in database
+      const chunksCreated = await storeDocumentChunks(
+        supabase,
+        item,
+        chunksWithEmbeddings
+      );
 
       // Update status to indexed
-      logger.log("📝 Updating status to indexed");
       await updateItemStatus(supabase, item.id, "indexed");
-      logger.log("✅ Status updated to indexed");
 
-      logger.log("🎉 Processing completed successfully", { 
+      logger.log("Processing completed successfully", { 
         itemId: item.id,
         chunksCreated 
       });
-
-      logMemoryUsage("Task end");
 
       return {
         success: true,
@@ -542,36 +294,15 @@ export const processItem = schemaTask({
       };
 
     } catch (processingError) {
-      logger.error("❌ ERROR processing item", { 
-        error: processingError,
-        errorMessage: processingError instanceof Error ? processingError.message : "Unknown",
-        errorStack: processingError instanceof Error ? processingError.stack : undefined,
-      });
+      logger.error("Error processing item", { error: processingError });
       
-      // Update status to failed with detailed error
       const errorMessage = processingError instanceof Error 
         ? processingError.message 
         : "Unknown error during processing";
       
-      logger.log("📝 Fetching item to update error status");
-      const item = await fetchKnowledgeBaseItem(supabase, payload.knowledgeBaseItemId);
-      logger.log("📝 Updating status to failed");
       await updateItemStatus(supabase, item.id, "failed", errorMessage);
-      logger.log("✅ Status updated to failed");
 
       throw processingError;
-    } finally {
-      logger.log("🧹 Starting cleanup");
-      // Ensure cleanup
-      text = null;
-      
-      // Hint to GC
-      if (global.gc) {
-        global.gc();
-      }
-      
-      logMemoryUsage("Task cleanup complete");
-      logger.log("✅ Cleanup complete");
     }
   },
 });
