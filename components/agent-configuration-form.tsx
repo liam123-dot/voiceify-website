@@ -28,8 +28,13 @@ import { Slider } from '@/components/ui/slider'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { toast } from 'sonner'
-import { Loader2, Save, Play, Pause } from 'lucide-react'
+import { Loader2, Save, Play, Pause, ChevronDown } from 'lucide-react'
 import type { AgentConfiguration } from '@/types/agent-config'
 
 // Voice interface
@@ -62,6 +67,13 @@ const formSchema = z.object({
   llmTemperature: z.number().min(0).max(1).optional(),
   ttsModelId: z.string().optional(), // LiveKit format: "elevenlabs/eleven_flash_v2_5"
   ttsVoiceId: z.string().optional(), // Voice ID: "EXAVITQu4vr4xnSDxMaL"
+  
+  // ElevenLabs advanced TTS settings
+  ttsStability: z.number().min(0).max(1).optional(),
+  ttsSimilarityBoost: z.number().min(0).max(1).optional(),
+  ttsStyle: z.number().min(0).max(1).optional(),
+  ttsUseSpeakerBoost: z.boolean().optional(),
+  ttsSpeed: z.number().min(0.25).max(4.0).optional(),
   
   // Common fields
   enableTranscription: z.boolean(),
@@ -180,6 +192,11 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         llmTemperature: 0.8,
         ttsModelId: 'elevenlabs/eleven_flash_v2_5', // Fixed to Eleven Flash v2.5
         ttsVoiceId: '',
+        ttsStability: 0.5,
+        ttsSimilarityBoost: 0.75,
+        ttsStyle: 0.0,
+        ttsUseSpeakerBoost: true,
+        ttsSpeed: 1.0,
         enableTranscription: true,
         recordSession: false,
         interruptible: true,
@@ -210,6 +227,12 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         const parts = ttsConfig.model.split(':');
         return parts.length > 1 ? parts[1] : '';
       })(),
+      // ElevenLabs TTS settings
+      ttsStability: initialConfig.pipeline?.tts?.stability ?? 0.5,
+      ttsSimilarityBoost: initialConfig.pipeline?.tts?.similarity_boost ?? 0.75,
+      ttsStyle: initialConfig.pipeline?.tts?.style ?? 0.0,
+      ttsUseSpeakerBoost: initialConfig.pipeline?.tts?.use_speaker_boost ?? true,
+      ttsSpeed: initialConfig.pipeline?.tts?.speed ?? 1.0,
       enableTranscription: initialConfig.settings?.enableTranscription ?? true,
       recordSession: initialConfig.settings?.recordSession ?? false,
       interruptible: initialConfig.settings?.interruptible ?? true,
@@ -261,6 +284,11 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
             tts: {
               // Combine model and voice into LiveKit format: "provider/model:voiceId"
               model: `${values.ttsModelId || 'elevenlabs/eleven_flash_v2_5'}:${values.ttsVoiceId || 'EXAVITQu4vr4xnSDxMaL'}`,
+              stability: values.ttsStability ?? 0.5,
+              similarity_boost: values.ttsSimilarityBoost ?? 0.75,
+              style: values.ttsStyle ?? 0.0,
+              use_speaker_boost: values.ttsUseSpeakerBoost ?? true,
+              speed: values.ttsSpeed ?? 1.0,
             },
           },
         }),
@@ -332,6 +360,10 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
 
   const llmTemperature = form.watch('llmTemperature')
   const ttsVoiceId = form.watch('ttsVoiceId')
+  const ttsStability = form.watch('ttsStability')
+  const ttsSimilarityBoost = form.watch('ttsSimilarityBoost')
+  const ttsStyle = form.watch('ttsStyle')
+  const ttsSpeed = form.watch('ttsSpeed')
 
   // Fetch all available voices from ElevenLabs
   const fetchVoices = async () => {
@@ -1037,6 +1069,159 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                       </FormItem>
                     )}
                   />
+
+                  <Separator />
+
+                  {/* Advanced TTS Settings */}
+                  <Collapsible>
+                    <CollapsibleTrigger className="flex items-center justify-between w-full hover:underline">
+                      <h4 className="text-sm font-medium">Advanced Voice Settings</h4>
+                      <ChevronDown className="h-4 w-4" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-4 pt-4">
+                      {/* Stability Slider */}
+                      <FormField
+                        control={form.control}
+                        name="ttsStability"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Stability</FormLabel>
+                              <span className="text-sm font-mono text-muted-foreground">
+                                {ttsStability?.toFixed(2) ?? '0.50'}
+                              </span>
+                            </div>
+                            <FormControl>
+                              <Slider
+                                min={0}
+                                max={1}
+                                step={0.05}
+                                value={[field.value ?? 0.5]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="py-4"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Controls consistency. Lower = more variable/emotional, Higher = more stable/monotone
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Similarity Boost Slider */}
+                      <FormField
+                        control={form.control}
+                        name="ttsSimilarityBoost"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Similarity Boost</FormLabel>
+                              <span className="text-sm font-mono text-muted-foreground">
+                                {ttsSimilarityBoost?.toFixed(2) ?? '0.75'}
+                              </span>
+                            </div>
+                            <FormControl>
+                              <Slider
+                                min={0}
+                                max={1}
+                                step={0.05}
+                                value={[field.value ?? 0.75]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="py-4"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              How closely to match the original voice. Higher = closer match
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Style Slider */}
+                      <FormField
+                        control={form.control}
+                        name="ttsStyle"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Style</FormLabel>
+                              <span className="text-sm font-mono text-muted-foreground">
+                                {ttsStyle?.toFixed(2) ?? '0.00'}
+                              </span>
+                            </div>
+                            <FormControl>
+                              <Slider
+                                min={0}
+                                max={1}
+                                step={0.05}
+                                value={[field.value ?? 0.0]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="py-4"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Expressiveness level. Higher = more expressive (may reduce stability)
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Speaker Boost Toggle */}
+                      <FormField
+                        control={form.control}
+                        name="ttsUseSpeakerBoost"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Speaker Boost</FormLabel>
+                              <FormDescription>
+                                Enhances similarity to original speaker (may increase latency)
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value ?? true}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Speed Slider */}
+                      <FormField
+                        control={form.control}
+                        name="ttsSpeed"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Speed</FormLabel>
+                              <span className="text-sm font-mono text-muted-foreground">
+                                {ttsSpeed?.toFixed(2) ?? '1.00'}x
+                              </span>
+                            </div>
+                            <FormControl>
+                              <Slider
+                                min={0.25}
+                                max={4.0}
+                                step={0.05}
+                                value={[field.value ?? 1.0]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="py-4"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Playback speed. 0.25x (slowest) to 4.0x (fastest), 1.0x = normal
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               </CardContent>
             </Card>

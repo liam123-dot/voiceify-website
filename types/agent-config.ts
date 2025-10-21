@@ -73,6 +73,10 @@ export interface TTSConfig {
   model: string; // LiveKit format: "provider/model:voiceId"
   inferenceType?: 'livekit' | 'direct'; // Whether to use LiveKit Inference or direct plugin (default: 'livekit')
   speed?: number;
+  stability?: number; // ElevenLabs: 0.0 to 1.0, controls consistency
+  similarity_boost?: number; // ElevenLabs: 0.0 to 1.0, controls voice matching
+  style?: number; // ElevenLabs: 0.0 to 1.0, controls expressiveness
+  use_speaker_boost?: boolean; // ElevenLabs: enhances similarity to original speaker
   apiKey?: string;
 }
 
