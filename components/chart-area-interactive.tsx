@@ -237,7 +237,7 @@ export function ChartAreaInteractive({
             />
             <Area
               dataKey="calls"
-              type="monotone"
+              type="linear"
               fill="url(#fillCalls)"
               stroke="var(--color-calls)"
               strokeWidth={2}
