@@ -293,7 +293,7 @@ export const processItem = schemaTask({
     knowledgeBaseItemId: z.string(),
   }),
   queue: {
-    concurrencyLimit: 5,
+    concurrencyLimit: 2,
   },
   run: async (payload: { knowledgeBaseItemId: string }, { ctx }) => {
     logger.log("Processing knowledge base item", { payload, ctx });
