@@ -1,6 +1,7 @@
 // Embedding and Chunking Utilities
 
-import { encoding_for_model } from 'tiktoken';
+import { Tiktoken } from 'tiktoken/lite';
+import cl100k_base from 'tiktoken/encoders/cl100k_base.json';
 import OpenAI from 'openai';
 import type { DocumentChunk, EmbeddingResult } from '@/types/knowledge-base';
 
@@ -16,6 +17,15 @@ function getOpenAIClient(): OpenAI {
     openaiClient = new OpenAI({ apiKey });
   }
   return openaiClient;
+}
+
+// Create tiktoken encoding instance for cl100k_base (used by text-embedding-3-small)
+function getEncoding(): Tiktoken {
+  return new Tiktoken(
+    cl100k_base.bpe_ranks,
+    cl100k_base.special_tokens,
+    cl100k_base.pat_str
+  );
 }
 
 /**
@@ -36,7 +46,7 @@ export async function chunkText(
   }
 
   // Use cl100k_base encoding (used by text-embedding-3-small)
-  const encoding = encoding_for_model('text-embedding-3-small');
+  const encoding = getEncoding();
   
   try {
     // Encode the entire text to tokens
