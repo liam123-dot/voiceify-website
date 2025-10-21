@@ -95,7 +95,7 @@ export async function POST(
           
           // Trigger background processing
           try {
-            await tasks.trigger("process-item", {
+            await tasks.trigger("test-firecrawl-1", {
               knowledgeBaseItemId: insertedItem.id,
             });
           } catch (triggerError) {

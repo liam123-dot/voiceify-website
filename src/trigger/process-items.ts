@@ -171,16 +171,6 @@ export const processItem = schemaTask({
   queue: {
     concurrencyLimit: 2,
   },
-  retry: {
-    maxAttempts: 3,
-    minTimeoutInMs: 1000,
-    maxTimeoutInMs: 10000,
-    factor: 2,
-    randomize: true,
-    outOfMemory: {
-      machine: "large-2x",
-    },
-  },
   run: async (payload: { knowledgeBaseItemId: string }) => {
     const supabase = createSupabaseClient();
     
