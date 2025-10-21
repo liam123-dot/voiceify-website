@@ -16,6 +16,8 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
 } from "@/components/ui/chart"
 import {
   Select,
@@ -29,12 +31,16 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 
-export const description = "Knowledge retrieval latency chart"
+export const description = "Knowledge retrieval latency breakdown chart"
 
 const chartConfig = {
-  latency: {
-    label: "Latency",
-    color: "var(--primary)",
+  embedding: {
+    label: "Embedding",
+    color: "hsl(var(--chart-1))",
+  },
+  supabase: {
+    label: "Supabase",
+    color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig
 
@@ -50,7 +56,7 @@ interface KnowledgeEvent {
   }
 }
 
-interface ChartKnowledgeLatencyProps {
+interface ChartKnowledgeLatencyBreakdownProps {
   events: KnowledgeEvent[]
   timeRange: string
   groupBy: 'day' | 'hour'
@@ -58,13 +64,13 @@ interface ChartKnowledgeLatencyProps {
   onGroupByChange: (groupBy: 'day' | 'hour') => void
 }
 
-export function ChartKnowledgeLatency({
+export function ChartKnowledgeLatencyBreakdown({
   events,
   timeRange,
   groupBy,
   onTimeRangeChange,
   onGroupByChange,
-}: ChartKnowledgeLatencyProps) {
+}: ChartKnowledgeLatencyBreakdownProps) {
   const processChartData = React.useMemo(() => {
     // Filter events by time range
     const now = new Date()
@@ -90,8 +96,10 @@ export function ChartKnowledgeLatency({
 
     // Group events by day or hour and calculate average latency
     const grouped = new Map<string, { 
-      totalLatency: number
-      count: number
+      embeddingLatency: number
+      supabaseLatency: number
+      embeddingCount: number
+      supabaseCount: number
     }>()
 
     filteredEvents.forEach(event => {
@@ -104,22 +112,31 @@ export function ChartKnowledgeLatency({
         key = startOfDay(eventDate).toISOString()
       }
       
-      const existing = grouped.get(key) || { totalLatency: 0, count: 0 }
+      const existing = grouped.get(key) || { 
+        embeddingLatency: 0, 
+        supabaseLatency: 0, 
+        embeddingCount: 0,
+        supabaseCount: 0
+      }
       
       // Extract latency values
       const eventData = event.data?.data || {}
-      const latency = eventData.latency_ms || 0
+      const embeddingLatency = eventData.embedding_latency_ms
+      const supabaseLatency = eventData.supabase_query_latency_ms
       
       grouped.set(key, {
-        totalLatency: existing.totalLatency + latency,
-        count: existing.count + (latency > 0 ? 1 : 0),
+        embeddingLatency: existing.embeddingLatency + (embeddingLatency || 0),
+        supabaseLatency: existing.supabaseLatency + (supabaseLatency || 0),
+        embeddingCount: existing.embeddingCount + (embeddingLatency ? 1 : 0),
+        supabaseCount: existing.supabaseCount + (supabaseLatency ? 1 : 0),
       })
     })
 
-    // Fill in all periods with data (0 if no events)
+    // Fill in all periods with data
     const filledData: Array<{ 
       date: string
-      latency: number
+      embedding: number
+      supabase: number
     }> = []
     let currentDate = new Date(normalizedStart)
 
@@ -127,16 +144,20 @@ export function ChartKnowledgeLatency({
       const key = currentDate.toISOString()
       const data = grouped.get(key)
       
-      if (data && data.count > 0) {
-        const avgLatency = Math.round(data.totalLatency / data.count)
+      if (data && (data.embeddingCount > 0 || data.supabaseCount > 0)) {
+        const avgEmbedding = data.embeddingCount > 0 ? Math.round(data.embeddingLatency / data.embeddingCount) : 0
+        const avgSupabase = data.supabaseCount > 0 ? Math.round(data.supabaseLatency / data.supabaseCount) : 0
+        
         filledData.push({
           date: key,
-          latency: avgLatency,
+          embedding: avgEmbedding,
+          supabase: avgSupabase,
         })
       } else {
         filledData.push({
           date: key,
-          latency: 0,
+          embedding: 0,
+          supabase: 0,
         })
       }
 
@@ -163,7 +184,7 @@ export function ChartKnowledgeLatency({
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardTitle>Knowledge Retrieval Latency</CardTitle>
+        <CardTitle>Knowledge Retrieval Latency Breakdown</CardTitle>
         <CardDescription>
           <span className="hidden @[540px]/card:block">
             {getTimeRangeLabel()} grouped by {groupBy === 'hour' ? 'hour' : 'day'}
@@ -226,62 +247,78 @@ export function ChartKnowledgeLatency({
           className="aspect-auto h-[250px] w-full"
         >
           <AreaChart data={processChartData}>
-              <defs>
-                <linearGradient id="fillLatency" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor="var(--color-latency)"
-                    stopOpacity={0.8}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="var(--color-latency)"
-                    stopOpacity={0.1}
-                  />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                minTickGap={32}
-                tickFormatter={(value) => {
-                  const date = new Date(value)
-                  if (groupBy === 'hour') {
-                    return format(date, 'HH:mm')
-                  }
-                  return format(date, 'MMM d')
-                }}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(value) => {
-                      const date = new Date(value)
-                      if (groupBy === 'hour') {
-                        return format(date, 'MMM d, HH:mm')
-                      }
-                      return format(date, 'MMM d, yyyy')
-                    }}
-                    indicator="dot"
-                    formatter={(value) => {
-                      if (value === null) return 'No data'
-                      return `${value}ms`
-                    }}
-                  />
+            <defs>
+              <linearGradient id="fillEmbedding" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="var(--color-embedding)"
+                  stopOpacity={0.8}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="var(--color-embedding)"
+                  stopOpacity={0.1}
+                />
+              </linearGradient>
+              <linearGradient id="fillSupabase" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="var(--color-supabase)"
+                  stopOpacity={0.8}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="var(--color-supabase)"
+                  stopOpacity={0.1}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              minTickGap={32}
+              tickFormatter={(value) => {
+                const date = new Date(value)
+                if (groupBy === 'hour') {
+                  return format(date, 'HH:mm')
                 }
-              />
-              <Area
-                dataKey="latency"
-                type="monotone"
-                fill="url(#fillLatency)"
-                stroke="var(--color-latency)"
-                strokeWidth={2}
-              />
-            </AreaChart>
+                return format(date, 'MMM d')
+              }}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(value) => {
+                    const date = new Date(value)
+                    if (groupBy === 'hour') {
+                      return format(date, 'MMM d, HH:mm')
+                    }
+                    return format(date, 'MMM d, yyyy')
+                  }}
+                  indicator="dot"
+                />
+              }
+            />
+            <Area
+              dataKey="supabase"
+              type="natural"
+              fill="url(#fillSupabase)"
+              stroke="var(--color-supabase)"
+              stackId="a"
+            />
+            <Area
+              dataKey="embedding"
+              type="natural"
+              fill="url(#fillEmbedding)"
+              stroke="var(--color-embedding)"
+              stackId="a"
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+          </AreaChart>
         </ChartContainer>
       </CardContent>
     </Card>

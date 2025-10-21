@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChartAreaInteractive } from '@/components/chart-area-interactive'
 import { ChartBarSegmented } from '@/components/chart-bar-segmented'
 import { ChartKnowledgeLatency } from '@/components/chart-knowledge-latency'
+import { ChartKnowledgeLatencyBreakdown } from '@/components/chart-knowledge-latency-breakdown'
 import { SectionCards } from '@/components/section-cards'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -60,6 +61,7 @@ interface AdminDashboardContainerProps {
 export function AdminDashboardContainer({ organizations }: AdminDashboardContainerProps) {
   const [selectedSlug, setSelectedSlug] = useState<string>('all')
   const [isSegmented, setIsSegmented] = useState(false)
+  const [showLatencyBreakdown, setShowLatencyBreakdown] = useState(false)
   const [timeRange, setTimeRange] = useState('7d')
   const [groupBy, setGroupBy] = useState<'day' | 'hour'>('day')
 
@@ -188,14 +190,37 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
           />
         )}
 
-        {/* Knowledge Retrieval Latency Chart */}
-        <ChartKnowledgeLatency
-          events={knowledgeEvents}
-          timeRange={timeRange}
-          groupBy={groupBy}
-          onTimeRangeChange={setTimeRange}
-          onGroupByChange={setGroupBy}
-        />
+        {/* Knowledge Retrieval Latency Charts */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="latency-breakdown-toggle"
+              checked={showLatencyBreakdown}
+              onCheckedChange={setShowLatencyBreakdown}
+            />
+            <Label htmlFor="latency-breakdown-toggle" className="text-sm font-medium cursor-pointer">
+              Show latency breakdown (Embedding + Supabase)
+            </Label>
+          </div>
+          
+          {showLatencyBreakdown ? (
+            <ChartKnowledgeLatencyBreakdown
+              events={knowledgeEvents}
+              timeRange={timeRange}
+              groupBy={groupBy}
+              onTimeRangeChange={setTimeRange}
+              onGroupByChange={setGroupBy}
+            />
+          ) : (
+            <ChartKnowledgeLatency
+              events={knowledgeEvents}
+              timeRange={timeRange}
+              groupBy={groupBy}
+              onTimeRangeChange={setTimeRange}
+              onGroupByChange={setGroupBy}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
