@@ -66,8 +66,8 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
   const [isSegmented, setIsSegmented] = useState(false)
   const [timeRange, setTimeRange] = useState('7d')
   const [groupBy, setGroupBy] = useState<'day' | 'hour'>('day')
-  const [bucketSize, setBucketSize] = useState(searchParams.get('bucketSize') || '5min')
-  const [lookbackPeriod, setLookbackPeriod] = useState(searchParams.get('lookbackPeriod') || '12h')
+  const [bucketSize, setBucketSize] = useState(searchParams.get('bucketSize') || '1h')
+  const [lookbackPeriod, setLookbackPeriod] = useState(searchParams.get('lookbackPeriod') || '3d')
   const [selectedLatencyTab, setSelectedLatencyTab] = useState<'overall' | 'supabase' | 'embedding'>('overall')
 
   const handleBucketSizeChange = (size: string) => {

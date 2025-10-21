@@ -107,7 +107,7 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
     queryClient.invalidateQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
   }
 
-  // Delete mutation
+  // Delete mutation with optimistic updates
   const deleteMutation = useMutation({
     mutationFn: async (itemId: string) => {
       const response = await fetch(
@@ -119,14 +119,43 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
       }
       return itemId
     },
+    onMutate: async (itemId: string) => {
+      // Cancel any outgoing refetches to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
+
+      // Snapshot the previous value
+      const previousItems = queryClient.getQueryData(['knowledge-base-items', slug, knowledgeBaseId])
+
+      // Optimistically update the cache by removing the item
+      queryClient.setQueryData(
+        ['knowledge-base-items', slug, knowledgeBaseId],
+        (old: KnowledgeBaseItem[] | undefined) => {
+          if (!old) return []
+          return old.filter((item) => item.id !== itemId)
+        }
+      )
+
+      // Return a context object with the snapshotted value
+      return { previousItems }
+    },
     onSuccess: () => {
       toast.success('Item deleted successfully')
-      queryClient.invalidateQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
       setItemToDelete(null)
     },
-    onError: (error) => {
+    onError: (error, itemId, context) => {
+      // Revert the optimistic update on error
+      if (context?.previousItems) {
+        queryClient.setQueryData(
+          ['knowledge-base-items', slug, knowledgeBaseId],
+          context.previousItems
+        )
+      }
       console.error('Error deleting item:', error)
       toast.error('Failed to delete item')
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure we have the latest data
+      queryClient.invalidateQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
     },
   })
 
