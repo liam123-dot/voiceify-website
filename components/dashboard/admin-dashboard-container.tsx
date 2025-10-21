@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChartAreaInteractive } from '@/components/chart-area-interactive'
 import { ChartBarSegmented } from '@/components/chart-bar-segmented'
+import { ChartKnowledgeLatency } from '@/components/chart-knowledge-latency'
 import { SectionCards } from '@/components/section-cards'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -21,6 +22,26 @@ interface CallWithOrg {
 
 interface AnalyticsResponse {
   calls: CallWithOrg[]
+}
+
+interface KnowledgeEvent {
+  id: string
+  time: string
+  call_id: string
+  event_type: string
+  data: {
+    data?: {
+      latency_ms?: number
+      embedding_latency_ms?: number
+      supabase_query_latency_ms?: number
+    }
+  }
+  organization_id: string
+  organization_slug: string
+}
+
+interface KnowledgeLatencyResponse {
+  events: KnowledgeEvent[]
 }
 
 // Type for minimal call data used in analytics
@@ -59,6 +80,23 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
     staleTime: 60 * 1000, // Consider data fresh for 1 minute
   })
 
+  // Fetch knowledge latency data
+  const { data: knowledgeData, isLoading: isKnowledgeLoading } = useQuery<KnowledgeLatencyResponse>({
+    queryKey: ['admin-knowledge-latency', selectedSlug],
+    queryFn: async () => {
+      const url = selectedSlug === 'all' 
+        ? '/api/admin/knowledge-latency' 
+        : `/api/admin/knowledge-latency?slug=${selectedSlug}`
+      
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error('Failed to fetch knowledge latency data')
+      }
+      return response.json()
+    },
+    staleTime: 60 * 1000, // Consider data fresh for 1 minute
+  })
+
   // Reset segmentation when switching away from "All Clients"
   useEffect(() => {
     if (selectedSlug !== 'all') {
@@ -66,7 +104,7 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
     }
   }, [selectedSlug])
 
-  if (isLoading) {
+  if (isLoading || isKnowledgeLoading) {
     return (
       <div className="px-4 lg:px-6 py-8">
         <div className="text-center text-muted-foreground">
@@ -77,6 +115,7 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
   }
 
   const calls = data?.calls || []
+  const knowledgeEvents = knowledgeData?.events || []
 
   // Transform calls with org data to regular calls for non-segmented view
   const transformedCalls = calls.map(call => ({
@@ -129,8 +168,8 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
       {/* Analytics Cards */}
       <SectionCards calls={transformedCalls as Call[]} timeRange={timeRange} />
 
-      {/* Chart */}
-      <div className="px-4 lg:px-6">
+      {/* Charts */}
+      <div className="px-4 lg:px-6 space-y-6">
         {isSegmented && selectedSlug === 'all' ? (
           <ChartBarSegmented
             calls={calls}
@@ -148,6 +187,15 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
             onGroupByChange={setGroupBy}
           />
         )}
+
+        {/* Knowledge Retrieval Latency Chart */}
+        <ChartKnowledgeLatency
+          events={knowledgeEvents}
+          timeRange={timeRange}
+          groupBy={groupBy}
+          onTimeRangeChange={setTimeRange}
+          onGroupByChange={setGroupBy}
+        />
       </div>
     </div>
   )
