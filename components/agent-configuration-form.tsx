@@ -161,6 +161,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   const [isLoadingVoices, setIsLoadingVoices] = useState(false)
   const [voicesError, setVoicesError] = useState<string | null>(null)
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null)
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null)
   
   // Voice filter state
   const [selectedAccent, setSelectedAccent] = useState<string>('all')
@@ -360,8 +361,27 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
     }
   }
 
+  // Stop currently playing audio
+  const stopAudio = () => {
+    if (currentAudio) {
+      currentAudio.pause()
+      currentAudio.currentTime = 0
+      setCurrentAudio(null)
+      setPlayingVoiceId(null)
+    }
+  }
+
   // Play voice preview
   const playVoicePreview = (voiceId: string, previewUrl: string | null) => {
+    // If clicking the same voice that's playing, stop it
+    if (playingVoiceId === voiceId && currentAudio) {
+      stopAudio()
+      return
+    }
+
+    // Stop any currently playing audio
+    stopAudio()
+
     if (!previewUrl) {
       toast.error('No preview available for this voice')
       return
@@ -369,19 +389,23 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
 
     setPlayingVoiceId(voiceId)
     const audio = new Audio(previewUrl)
+    setCurrentAudio(audio)
     
     audio.onended = () => {
       setPlayingVoiceId(null)
+      setCurrentAudio(null)
     }
     
     audio.onerror = () => {
       setPlayingVoiceId(null)
+      setCurrentAudio(null)
       toast.error('Failed to play voice preview')
     }
     
     audio.play().catch(error => {
       console.error('Error playing audio:', error)
       setPlayingVoiceId(null)
+      setCurrentAudio(null)
       toast.error('Failed to play voice preview')
     })
   }
@@ -426,6 +450,16 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
     fetchVoices()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (currentAudio) {
+        currentAudio.pause()
+        currentAudio.currentTime = 0
+      }
+    }
+  }, [currentAudio])
 
   return (
     <Form {...form}>
@@ -983,10 +1017,10 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                                         e.preventDefault()
                                         playVoicePreview(voice.voiceId, voice.previewUrl)
                                       }}
-                                      disabled={playingVoiceId === voice.voiceId}
+                                      title={playingVoiceId === voice.voiceId ? 'Stop preview' : 'Play preview'}
                                     >
                                       {playingVoiceId === voice.voiceId ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <Pause className="h-4 w-4" />
                                       ) : (
                                         <Play className="h-4 w-4" />
                                       )}
