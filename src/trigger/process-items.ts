@@ -3,7 +3,7 @@ import z from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
 import { processTextWithEmbeddings } from "@/lib/embeddings/processor";
-import { testFirecrawl } from "./test-firecrawl";
+import Firecrawl from "@mendable/firecrawl-js";
 
 /**
  * Create Supabase client for Trigger.dev tasks
@@ -76,36 +76,31 @@ async function updateItemStatus(
 }
 
 /**
- * Fetch and extract text from a URL using the testFirecrawl task
+ * Fetch and extract text from a URL using Firecrawl
  */
 async function fetchTextFromURL(url: string): Promise<string> {
-  logger.log("Fetching URL via Firecrawl task", { url });
+  logger.log("Fetching URL with Firecrawl", { url });
 
-  try {
-    // Trigger the Firecrawl task and wait for the result
-    const result = await testFirecrawl.triggerAndWait({ url });
+  const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY! });
 
-    if (!result.ok) {
-      throw new Error(`Firecrawl task failed: ${result.error}`);
-    }
+  const result = await firecrawl.scrapeUrl(url, {
+    formats: ["markdown"],
+  });
 
-    if (!result.output.success || !result.output.markdown) {
-      throw new Error("No content returned from Firecrawl task");
-    }
-
-    logger.log("Successfully fetched URL", { 
-      textLength: result.output.markdown.length,
-      url 
-    });
-
-    return result.output.markdown;
-  } catch (error) {
-    const errorMsg = error instanceof Error 
-      ? error.message 
-      : "Unknown error";
-    logger.error("URL fetch error", { error, url });
-    throw new Error(`Failed to fetch URL: ${errorMsg}`);
+  if (!result.success) {
+    throw new Error(result.error || "Failed to scrape URL with Firecrawl");
   }
+
+  if (!result.markdown) {
+    throw new Error("No content extracted from URL");
+  }
+
+  logger.log("Successfully fetched URL", { 
+    textLength: result.markdown.length,
+    url 
+  });
+
+  return result.markdown;
 }
 
 /**
