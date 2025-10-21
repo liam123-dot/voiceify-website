@@ -279,7 +279,7 @@ export class ResourceMonitor {
             rss,
             command: cmdline.replace(/\0/g, " ").trim(),
           };
-        } catch {
+        } catch (error) {
           return null;
         }
       })
@@ -461,7 +461,7 @@ export class ResourceMonitor {
             }
           : null,
       };
-    } catch {
+    } catch (error) {
       return {
         node: nodeMetrics,
         targetProcess: this.processName
@@ -503,10 +503,7 @@ export class ResourceMonitor {
   /**
    * Create an enhanced log label with key metrics for quick scanning
    */
-  private createEnhancedLabel(
-    payload: Awaited<ReturnType<typeof this.getResourceSnapshotPayload>>,
-    baseLabel: string
-  ): string {
+  private createEnhancedLabel(payload: any, baseLabel: string): string {
     const parts: string[] = [baseLabel];
 
     // System resources with text indicators
@@ -595,10 +592,7 @@ export class ResourceMonitor {
   /**
    * Create a compact version of the enhanced label for high-frequency logging
    */
-  private createCompactLabel(
-    payload: Awaited<ReturnType<typeof this.getResourceSnapshotPayload>>,
-    baseLabel: string
-  ): string {
+  private createCompactLabel(payload: any, baseLabel: string): string {
     const parts: string[] = [baseLabel];
 
     // Only show critical metrics in compact mode
@@ -728,8 +722,7 @@ function summarizeGCEntries(entries: PerformanceEntry[]): GCSummary {
     totalDuration += duration;
     if (duration > maxDuration) maxDuration = duration;
 
-    const gcEntry = e as PerformanceEntry & { detail?: { kind?: number } };
-    const kind = kindName(gcEntry?.detail?.kind ?? "unknown");
+    const kind = kindName((e as any)?.detail?.kind ?? "unknown");
     if (!kinds[kind]) {
       kinds[kind] = { count: 0, totalDuration: 0, maxDuration: 0 };
     }
