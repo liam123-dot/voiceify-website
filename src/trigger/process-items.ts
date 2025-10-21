@@ -4,23 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClientNoCookies } from "@/lib/supabase/server";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
 import { extractTextFromHTML } from "@/lib/embeddings/processor";
-import FirecrawlApp from "@mendable/firecrawl-js";
 
 import { ResourceMonitor } from "./resource-monitor";
-
-// Initialize Firecrawl client as singleton to prevent memory leaks
-let firecrawlClient: FirecrawlApp | null = null;
-
-function getFirecrawlClient(): FirecrawlApp {
-  if (!firecrawlClient) {
-    const apiKey = process.env.FIRECRAWL_API_KEY;
-    if (!apiKey) {
-      throw new Error("Firecrawl API key not configured");
-    }
-    firecrawlClient = new FirecrawlApp({ apiKey });
-  }
-  return firecrawlClient;
-}
 
 // Helper to log memory usage
 function logMemoryUsage(label: string) {
@@ -141,53 +126,70 @@ async function fetchTextFromURL(url: string): Promise<string> {
 }
 
 /**
- * Fetch and extract text from a URL using Firecrawl
+ * Fetch and extract text from a URL using Firecrawl API directly
  * Firecrawl provides better scraping with JavaScript rendering and cleaner content extraction
+ * Using direct API calls instead of SDK to reduce memory overhead
  */
 async function fetchTextFromURLWithFirecrawl(url: string): Promise<string> {
-  logger.log("Fetching URL with Firecrawl", { url });
+  logger.log("Fetching URL with Firecrawl API", { url });
   logMemoryUsage("Before Firecrawl scrape");
 
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) {
+    logger.error("FIRECRAWL_API_KEY not configured");
+    throw new Error("Firecrawl API key not configured");
+  }
+
   try {
-    const firecrawl = getFirecrawlClient();
+    logger.log("Starting Firecrawl API scrape", { url });
 
-    logger.log("Starting Firecrawl scrape", { url });
+    // Call Firecrawl v2 API directly
+    const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: url,
+        formats: ["markdown"], // Only request markdown to minimize response size
+        maxAge: 0, // Force fresh content
+      }),
+    });
 
-    // Scrape the URL with Firecrawl
-    const scrapeResult = await firecrawl.scrapeUrl(url);
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("Firecrawl API error", { 
+        status: response.status, 
+        statusText: response.statusText,
+        error: errorText 
+      });
+      throw new Error(`Firecrawl API error ${response.status}: ${errorText}`);
+    }
 
-    if (!scrapeResult.success) {
+    const result = await response.json();
+
+    if (!result.success) {
       throw new Error("Firecrawl scrape failed");
     }
 
-    // Prefer markdown content, fall back to HTML extraction
-    let text = "";
+    // Extract markdown from response
+    const markdown = result.data?.markdown;
     
-    if (scrapeResult.markdown && scrapeResult.markdown.trim().length > 0) {
-      text = scrapeResult.markdown;
-      logger.log("Using markdown content from Firecrawl", {
-        textLength: text.length,
-      });
-    } else if (scrapeResult.html && scrapeResult.html.trim().length > 0) {
-      text = extractTextFromHTML(scrapeResult.html);
-      logger.log("Using HTML content from Firecrawl", {
-        textLength: text.length,
-      });
-    }
-
-    if (!text || text.trim().length === 0) {
+    if (!markdown || markdown.trim().length === 0) {
       throw new Error("No text content extracted from URL via Firecrawl");
     }
 
     logger.log("Successfully extracted text from URL using Firecrawl", {
-      textLength: text.length,
+      textLength: markdown.length,
       url,
-      usedMarkdown: !!scrapeResult.markdown,
+      sourceURL: result.data?.metadata?.sourceURL,
+      statusCode: result.data?.metadata?.statusCode,
     });
 
     logMemoryUsage("After Firecrawl scrape");
 
-    return text;
+    return markdown;
   } catch (error) {
     const errorMsg = error instanceof Error 
       ? error.message 
