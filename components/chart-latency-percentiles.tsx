@@ -43,6 +43,10 @@ import {
 export const description = "Latency percentiles chart"
 
 const chartConfig = {
+  min: {
+    label: "Min",
+    color: "hsl(var(--chart-6))",
+  },
   p50: {
     label: "p50",
     color: "hsl(var(--chart-1))",
@@ -109,6 +113,7 @@ export function ChartLatencyPercentiles({
     // Calculate metrics for each bucket
     const chartData: Array<{
       date: string
+      min: number
       p50: number
       p95: number
       p99: number
@@ -126,6 +131,7 @@ export function ChartLatencyPercentiles({
       if (metrics) {
         chartData.push({
           date: bucketKey,
+          min: metrics.min,
           p50: metrics.p50,
           p95: metrics.p95,
           p99: metrics.p99,
@@ -291,6 +297,15 @@ export function ChartLatencyPercentiles({
                   fillOpacity={0.4}
                   stroke="var(--color-p50)"
                   strokeWidth={2}
+                />
+                <Area
+                  dataKey="min"
+                  type="natural"
+                  fill="var(--color-min)"
+                  fillOpacity={0.1}
+                  stroke="var(--color-min)"
+                  strokeWidth={1.5}
+                  strokeDasharray="3 3"
                 />
               </AreaChart>
             </ChartContainer>
