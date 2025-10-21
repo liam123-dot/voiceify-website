@@ -135,9 +135,10 @@ async function fetchTextFromURLWithFirecrawl(url: string): Promise<string> {
     body: JSON.stringify({
       url: url,
       formats: ["markdown"],
-      maxAge: 0,
     }),
   });
+  console.log('response', response);
+  console.log(response.body);
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -1,17 +1,17 @@
-
-
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import { tasks } from "@trigger.dev/sdk";
 import { NextResponse } from "next/server";
+import type { testFirecrawl } from "@/src/trigger/test-firecrawl";
 
 //tasks.trigger also works with the edge runtime
 //export const runtime = "edge";
 
 export async function GET() {
-  const handle = await tasks.trigger(
-    "process-item",
+  const handle = await tasks.trigger<typeof testFirecrawl>(
+    "test-firecrawl",
     {
-        knowledgeBaseItemId: "772af63b-408a-41b3-a457-eb2e82c49e6a",
+      // url: "https://www.connectvargroup.io/",
+      url: 'https://zenflow-ai.com/'
     }
   );
 

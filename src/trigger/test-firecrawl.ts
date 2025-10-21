@@ -22,6 +22,8 @@ export const testFirecrawl = schemaTask({
         formats: ["markdown"],
       }),
     });
+    console.log('response', response);
+  console.log(response.body);
 
     if (!response.ok) {
       const errorText = await response.text();
