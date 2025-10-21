@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Line } from "recharts"
 import { format } from "date-fns"
 import {
   Card,
@@ -67,6 +67,10 @@ const chartConfig = {
     label: "Max",
     color: "hsl(var(--chart-5))",
   },
+  count: {
+    label: "Count",
+    color: "hsl(var(--muted-foreground))",
+  },
 } satisfies ChartConfig
 
 interface ChartLatencyPercentilesProps {
@@ -113,6 +117,7 @@ export function ChartLatencyPercentiles({
     // Calculate metrics for each bucket
     const chartData: Array<{
       date: string
+      count: number
       min: number
       p50: number
       p95: number
@@ -131,6 +136,7 @@ export function ChartLatencyPercentiles({
       if (metrics) {
         chartData.push({
           date: bucketKey,
+          count: metrics.count,
           min: metrics.min,
           p50: metrics.p50,
           p95: metrics.p95,
@@ -245,6 +251,12 @@ export function ChartLatencyPercentiles({
                   tickMargin={8}
                   minTickGap={32}
                   tickFormatter={formatXAxis}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => `${value}ms`}
                 />
                 <ChartTooltip
                   cursor={false}

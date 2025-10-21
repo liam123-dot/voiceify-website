@@ -6,6 +6,7 @@ export function calculatePercentile(values: number[], percentile: number): numbe
 }
 
 export interface LatencyMetrics {
+  count: number
   min: number
   p50: number
   p95: number
@@ -18,6 +19,7 @@ export function calculateLatencyMetrics(latencies: number[]): LatencyMetrics | n
   if (latencies.length === 0) return null
   
   return {
+    count: latencies.length,
     min: Math.min(...latencies),
     p50: calculatePercentile(latencies, 50),
     p95: calculatePercentile(latencies, 95),
