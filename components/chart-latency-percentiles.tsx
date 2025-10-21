@@ -279,7 +279,7 @@ export function ChartLatencyPercentiles({
                 <ChartLegend content={<ChartLegendContent />} />
                 <Area
                   dataKey="max"
-                  type="natural"
+                  type="linear"
                   fill="var(--color-max)"
                   fillOpacity={0.1}
                   stroke="var(--color-max)"
@@ -289,7 +289,7 @@ export function ChartLatencyPercentiles({
                 />
                 <Area
                   dataKey="p99"
-                  type="natural"
+                  type="linear"
                   fill="var(--color-p99)"
                   fillOpacity={0.2}
                   stroke="var(--color-p99)"
@@ -298,7 +298,7 @@ export function ChartLatencyPercentiles({
                 />
                 <Area
                   dataKey="p95"
-                  type="natural"
+                  type="linear"
                   fill="var(--color-p95)"
                   fillOpacity={0.3}
                   stroke="var(--color-p95)"
@@ -307,7 +307,7 @@ export function ChartLatencyPercentiles({
                 />
                 <Area
                   dataKey="avg"
-                  type="natural"
+                  type="linear"
                   fill="var(--color-avg)"
                   fillOpacity={0.2}
                   stroke="var(--color-avg)"
@@ -317,7 +317,7 @@ export function ChartLatencyPercentiles({
                 />
                 <Area
                   dataKey="p50"
-                  type="natural"
+                  type="linear"
                   fill="var(--color-p50)"
                   fillOpacity={0.4}
                   stroke="var(--color-p50)"
@@ -326,7 +326,7 @@ export function ChartLatencyPercentiles({
                 />
                 <Area
                   dataKey="min"
-                  type="natural"
+                  type="linear"
                   fill="var(--color-min)"
                   fillOpacity={0.1}
                   stroke="var(--color-min)"
@@ -336,7 +336,7 @@ export function ChartLatencyPercentiles({
                 />
                 <Line
                   dataKey="count"
-                  type="monotone"
+                  type="linear"
                   stroke="var(--color-count)"
                   strokeWidth={2}
                   dot={false}
