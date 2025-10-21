@@ -188,7 +188,7 @@ export function ChartLatencyPercentiles({
               categories={["Min", "p50", "p95", "p99", "Average", "Max"]}
               colors={["cyan", "blue", "violet", "fuchsia", "amber", "pink"]}
               valueFormatter={(value: number) => `${value.toFixed(2)}ms`}
-              yAxisWidth={60}
+              yAxisWidth={80}
               showLegend={true}
               showGridLines={true}
               autoMinValue={true}
