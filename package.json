@@ -46,6 +46,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "@livekit/protocol": "^1.24.1",
     "livekit-server-sdk": "^2.14.0",
     "lucide-react": "^0.546.0",
     "next": "15.5.4",
