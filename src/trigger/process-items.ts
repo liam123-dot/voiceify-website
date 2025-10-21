@@ -3,7 +3,7 @@ import z from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
 import { processTextWithEmbeddings } from "@/lib/embeddings/processor";
-import Firecrawl from "@mendable/firecrawl-js";
+import axios from "axios";
 
 /**
  * Create Supabase client for Trigger.dev tasks
@@ -76,31 +76,40 @@ async function updateItemStatus(
 }
 
 /**
- * Fetch and extract text from a URL using Firecrawl
+ * Fetch and extract text from a URL using Firecrawl API
  */
 async function fetchTextFromURL(url: string): Promise<string> {
   logger.log("Fetching URL with Firecrawl", { url });
 
-  const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY! });
-
-  const result = await firecrawl.scrapeUrl(url, {
-    formats: ["markdown"],
-  });
-
-  if (!result.success) {
-    throw new Error(result.error || "Failed to scrape URL with Firecrawl");
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) {
+    throw new Error("Firecrawl API key not configured");
   }
 
-  if (!result.markdown) {
-    throw new Error("No content extracted from URL");
+  const response = await axios.post(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      url: url,
+      formats: ["markdown"],
+    },
+    {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.data.success || !response.data.data?.markdown) {
+    throw new Error("No content extracted from URL via Firecrawl");
   }
 
   logger.log("Successfully fetched URL", { 
-    textLength: result.markdown.length,
+    textLength: response.data.data.markdown.length,
     url 
   });
 
-  return result.markdown;
+  return response.data.data.markdown;
 }
 
 /**
