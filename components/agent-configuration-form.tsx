@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Button } from '@/components/ui/button'
-import { STT_MODELS, LLM_MODELS, TTS_MODELS, getTTSModel } from '@/lib/models'
+import { STT_MODELS, LLM_MODELS } from '@/lib/models'
 import {
   Form,
   FormControl,
@@ -27,9 +27,20 @@ import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { toast } from 'sonner'
-import { Loader2, Save } from 'lucide-react'
+import { Loader2, Save, Play, Pause } from 'lucide-react'
 import type { AgentConfiguration } from '@/types/agent-config'
+
+// Voice interface
+interface Voice {
+  voiceId: string
+  name: string
+  description: string | null
+  category: string | null
+  labels: Record<string, string>
+  previewUrl: string | null
+}
 
 const formSchema = z.object({
   pipelineType: z.enum(['realtime', 'pipeline']),
@@ -144,6 +155,16 @@ interface AgentConfigurationFormProps {
 export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'configuration' }: AgentConfigurationFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [debugError, setDebugError] = useState<string | null>(null)
+  
+  // Voice management state
+  const [availableVoices, setAvailableVoices] = useState<Voice[]>([])
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false)
+  const [voicesError, setVoicesError] = useState<string | null>(null)
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null)
+  
+  // Voice filter state
+  const [selectedAccent, setSelectedAccent] = useState<string>('all')
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('all')
 
   // Extract values from initial config with proper defaults
   const getInitialValues = (): FormValues => {
@@ -156,8 +177,8 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         sttModel: 'deepgram/nova-2-phonecall',
         llmModel: 'openai/gpt-4o-mini',
         llmTemperature: 0.8,
-        ttsModelId: 'elevenlabs/eleven_flash_v2_5',
-        ttsVoiceId: 'EXAVITQu4vr4xnSDxMaL',
+        ttsModelId: 'elevenlabs/eleven_flash_v2_5', // Fixed to Eleven Flash v2.5
+        ttsVoiceId: '',
         enableTranscription: true,
         recordSession: false,
         interruptible: true,
@@ -178,19 +199,15 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
       sttModel: initialConfig.pipeline?.stt?.model || 'deepgram/nova-2-phonecall',
       llmModel: initialConfig.pipeline?.llm?.model || 'openai/gpt-4o-mini',
       llmTemperature: initialConfig.pipeline?.llm?.temperature ?? 0.8,
-      // Parse TTS model and voice from combined format
-      ttsModelId: (() => {
-        const ttsConfig = initialConfig.pipeline?.tts;
-        if (!ttsConfig?.model) return 'elevenlabs/eleven_flash_v2_5';
-        // Split by ':' to get model part
-        return ttsConfig.model.split(':')[0] || 'elevenlabs/eleven_flash_v2_5';
-      })(),
+      // Fixed to Eleven Flash v2.5
+      ttsModelId: 'elevenlabs/eleven_flash_v2_5',
+      // Extract voice ID from combined format
       ttsVoiceId: (() => {
         const ttsConfig = initialConfig.pipeline?.tts;
-        if (!ttsConfig?.model) return 'EXAVITQu4vr4xnSDxMaL';
+        if (!ttsConfig?.model) return '';
         // Split by ':' to get voice part
         const parts = ttsConfig.model.split(':');
-        return parts.length > 1 ? parts[1] : 'EXAVITQu4vr4xnSDxMaL';
+        return parts.length > 1 ? parts[1] : '';
       })(),
       enableTranscription: initialConfig.settings?.enableTranscription ?? true,
       recordSession: initialConfig.settings?.recordSession ?? false,
@@ -313,14 +330,102 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   }
 
   const llmTemperature = form.watch('llmTemperature')
-  const selectedTTSModelId = form.watch('ttsModelId')
-  
-  // Get available voices for the selected TTS model
-  const availableVoices = useMemo(() => {
-    if (!selectedTTSModelId) return []
-    const ttsModel = getTTSModel(selectedTTSModelId)
-    return ttsModel?.voices || []
-  }, [selectedTTSModelId])
+  const ttsVoiceId = form.watch('ttsVoiceId')
+
+  // Fetch all available voices from ElevenLabs
+  const fetchVoices = async () => {
+    setIsLoadingVoices(true)
+    setVoicesError(null)
+
+    try {
+      const response = await fetch('/api/elevenlabs/voices')
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch voices' }))
+        throw new Error(errorData.error || 'Failed to load voices')
+      }
+
+      const data = await response.json()
+      setAvailableVoices(data.voices || [])
+      setVoicesError(null)
+    } catch (error) {
+      console.error('Error fetching voices:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch voices'
+      setVoicesError(errorMessage)
+      toast.error('Failed to load voices', {
+        description: errorMessage
+      })
+    } finally {
+      setIsLoadingVoices(false)
+    }
+  }
+
+  // Play voice preview
+  const playVoicePreview = (voiceId: string, previewUrl: string | null) => {
+    if (!previewUrl) {
+      toast.error('No preview available for this voice')
+      return
+    }
+
+    setPlayingVoiceId(voiceId)
+    const audio = new Audio(previewUrl)
+    
+    audio.onended = () => {
+      setPlayingVoiceId(null)
+    }
+    
+    audio.onerror = () => {
+      setPlayingVoiceId(null)
+      toast.error('Failed to play voice preview')
+    }
+    
+    audio.play().catch(error => {
+      console.error('Error playing audio:', error)
+      setPlayingVoiceId(null)
+      toast.error('Failed to play voice preview')
+    })
+  }
+
+  // Extract unique accents and languages from voices
+  const { accents, languages } = useMemo(() => {
+    const accentSet = new Set<string>()
+    const languageSet = new Set<string>()
+    
+    availableVoices.forEach(voice => {
+      if (voice.labels) {
+        if (voice.labels.accent) {
+          accentSet.add(voice.labels.accent)
+        }
+        if (voice.labels.language) {
+          languageSet.add(voice.labels.language)
+        }
+      }
+    })
+    
+    return {
+      accents: Array.from(accentSet).sort(),
+      languages: Array.from(languageSet).sort()
+    }
+  }, [availableVoices])
+
+  // Filter voices based on selected accent and language
+  const filteredVoices = useMemo(() => {
+    return availableVoices.filter(voice => {
+      const matchesAccent = selectedAccent === 'all' || 
+        (voice.labels?.accent === selectedAccent)
+      
+      const matchesLanguage = selectedLanguage === 'all' || 
+        (voice.labels?.language === selectedLanguage)
+      
+      return matchesAccent && matchesLanguage
+    })
+  }, [availableVoices, selectedAccent, selectedLanguage])
+
+  // Load voices on mount
+  useEffect(() => {
+    fetchVoices()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <Form {...form}>
@@ -727,76 +832,177 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                 {/* TTS Configuration */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-medium">Text-to-Speech</h4>
+                  
+                  {/* Fixed TTS Model display */}
+                  <div className="rounded-lg border p-4 bg-muted/50">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">TTS Model</p>
+                      <p className="text-sm text-muted-foreground">Eleven Flash v2.5</p>
+                      <p className="text-xs text-muted-foreground">
+                        Latest generation flash model with improved quality
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Voice Selection */}
                   <FormField
                     control={form.control}
-                    name="ttsModelId"
+                    name="ttsVoiceId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>TTS Model</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select TTS model" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {TTS_MODELS.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{model.name}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {model.description} {model.recommended && '(Recommended)'}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Voice</FormLabel>
                         <FormDescription>
-                          Choose your text-to-speech model
+                          Select a voice from your ElevenLabs account
                         </FormDescription>
+                        
+                        {isLoadingVoices ? (
+                          <div className="flex items-center justify-center p-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            <span className="ml-2 text-sm text-muted-foreground">Loading voices...</span>
+                          </div>
+                        ) : voicesError ? (
+                          <div className="rounded-lg border bg-red-50 dark:bg-red-950/20 p-4">
+                            <p className="text-sm text-red-800 dark:text-red-200">
+                              {voicesError}
+                            </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={fetchVoices}
+                              className="mt-2"
+                            >
+                              Retry
+                            </Button>
+                          </div>
+                        ) : availableVoices.length === 0 ? (
+                          <div className="rounded-lg border bg-yellow-50 dark:bg-yellow-950/20 p-4">
+                            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                              No voices found in your ElevenLabs account.
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Filter Controls */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium">Filter by Accent</label>
+                                <Select value={selectedAccent} onValueChange={setSelectedAccent}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="All accents" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All accents</SelectItem>
+                                    {accents.map((accent) => (
+                                      <SelectItem key={accent} value={accent}>
+                                        {accent}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium">Filter by Language</label>
+                                <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="All languages" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All languages</SelectItem>
+                                    {languages.map((language) => (
+                                      <SelectItem key={language} value={language}>
+                                        {language}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            {/* Results count */}
+                            <div className="text-sm text-muted-foreground mb-3">
+                              Showing {filteredVoices.length} of {availableVoices.length} voices
+                            </div>
+
+                            {filteredVoices.length === 0 ? (
+                              <div className="rounded-lg border bg-yellow-50 dark:bg-yellow-950/20 p-4">
+                                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                  No voices match the selected filters. Try adjusting your filters.
+                                </p>
+                              </div>
+                            ) : (
+                              <FormControl>
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                  className="space-y-2 max-h-[600px] overflow-y-auto pr-2"
+                                >
+                                  {filteredVoices.map((voice) => (
+                                <div
+                                  key={voice.voiceId}
+                                  className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-accent"
+                                >
+                                  <RadioGroupItem value={voice.voiceId} id={voice.voiceId} />
+                                  <label
+                                    htmlFor={voice.voiceId}
+                                    className="flex-1 cursor-pointer"
+                                  >
+                                    <div className="space-y-1">
+                                      <p className="text-sm font-medium leading-none">
+                                        {voice.name}
+                                      </p>
+                                      {voice.description && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {voice.description}
+                                        </p>
+                                      )}
+                                      <div className="flex flex-wrap gap-1 mt-2">
+                                        {voice.category && (
+                                          <span className="text-xs px-2 py-0.5 rounded-md bg-secondary">
+                                            {voice.category}
+                                          </span>
+                                        )}
+                                        {Object.entries(voice.labels).slice(0, 3).map(([key, value]) => (
+                                          <span
+                                            key={key}
+                                            className="text-xs px-2 py-0.5 rounded-md bg-secondary"
+                                          >
+                                            {key}: {value}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </label>
+                                  {voice.previewUrl && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={(e) => {
+                                        e.preventDefault()
+                                        playVoicePreview(voice.voiceId, voice.previewUrl)
+                                      }}
+                                      disabled={playingVoiceId === voice.voiceId}
+                                    >
+                                      {playingVoiceId === voice.voiceId ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Play className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
+                                </RadioGroup>
+                              </FormControl>
+                            )}
+                          </>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
-                  {/* Voice selection - shown when model is selected and has voices */}
-                  {selectedTTSModelId && availableVoices.length > 0 && (
-                    <FormField
-                      control={form.control}
-                      name="ttsVoiceId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Voice</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a voice" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {availableVoices.map((voice) => (
-                                <SelectItem key={voice.id} value={voice.id}>
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{voice.name}</span>
-                                    {voice.description && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {voice.description}
-                                      </span>
-                                    )}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormDescription>
-                            Choose the voice for this model
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
                 </div>
               </CardContent>
             </Card>

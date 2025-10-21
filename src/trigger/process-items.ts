@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClientNoCookies } from "@/lib/supabase/server";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
 import { processTextWithEmbeddings, extractTextFromHTML } from "@/lib/embeddings/processor";
+import FirecrawlApp from "@mendable/firecrawl-js";
 
 /**
  * Fetch knowledge base item from database
@@ -95,11 +96,84 @@ async function fetchTextFromURL(url: string): Promise<string> {
 }
 
 /**
+ * Fetch and extract text from a URL using Firecrawl
+ * Firecrawl provides better scraping with JavaScript rendering and cleaner content extraction
+ */
+async function fetchTextFromURLWithFirecrawl(url: string): Promise<string> {
+  logger.log("Fetching URL with Firecrawl", { url });
+
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) {
+    logger.error("FIRECRAWL_API_KEY not configured");
+    throw new Error("Firecrawl API key not configured");
+  }
+
+  try {
+    const firecrawl = new FirecrawlApp({ apiKey });
+
+    logger.log("Starting Firecrawl scrape", { url });
+
+    // Scrape the URL with Firecrawl
+    const scrapeResult = await firecrawl.scrapeUrl(url, {
+      formats: ["markdown", "html"],
+      onlyMainContent: true, // Extract only the main content, removing headers, footers, etc.
+      waitFor: 1000, // Wait for JavaScript to load (in milliseconds)
+    });
+
+    if (!scrapeResult.success) {
+      throw new Error("Firecrawl scrape failed");
+    }
+
+    // Prefer markdown content, fall back to HTML extraction
+    let text = "";
+    
+    if (scrapeResult.markdown && scrapeResult.markdown.trim().length > 0) {
+      text = scrapeResult.markdown;
+      logger.log("Using markdown content from Firecrawl", {
+        textLength: text.length,
+      });
+    } else if (scrapeResult.html && scrapeResult.html.trim().length > 0) {
+      text = extractTextFromHTML(scrapeResult.html);
+      logger.log("Using HTML content from Firecrawl", {
+        textLength: text.length,
+      });
+    }
+
+    if (!text || text.trim().length === 0) {
+      throw new Error("No text content extracted from URL via Firecrawl");
+    }
+
+    logger.log("Successfully extracted text from URL using Firecrawl", {
+      textLength: text.length,
+      url,
+      usedMarkdown: !!scrapeResult.markdown,
+    });
+
+    return text;
+  } catch (error) {
+    const errorMsg = error instanceof Error 
+      ? error.message 
+      : "Unknown error";
+    logger.error("Firecrawl fetch error", { error, url });
+    throw new Error(`Failed to fetch URL with Firecrawl: ${errorMsg}`);
+  }
+}
+
+/**
  * Extract text content based on item type
  */
 async function extractTextFromItem(item: KnowledgeBaseItem): Promise<string> {
   if (item.type === "url" && item.url) {
-    return await fetchTextFromURL(item.url);
+    // Try Firecrawl first, fall back to basic fetch if it fails
+    try {
+      return await fetchTextFromURLWithFirecrawl(item.url);
+    } catch (firecrawlError) {
+      logger.warn("Firecrawl failed, falling back to basic fetch", { 
+        error: firecrawlError,
+        url: item.url 
+      });
+      return await fetchTextFromURL(item.url);
+    }
   } 
   
   if (item.type === "text" && item.text_content) {
