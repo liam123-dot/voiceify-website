@@ -25,6 +25,7 @@ export default defineConfig({
       projectId: process.env.VERCEL_PROJECT_ID,
       vercelTeamId: process.env.VERCEL_TEAM_ID
     })],
+    external: ["tiktoken_bg.wasm"]
   },
   dirs: ["./src/trigger"],
 });
