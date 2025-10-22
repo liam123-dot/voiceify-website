@@ -119,12 +119,84 @@ export interface SpeechCreatedEventData {
   source: string;
   userInitiated: boolean;
   offsetMs: number;
+  text?: string;
+  speechId?: string;
+  transcription?: {
+    text: string | null;
+  };
+  words?: Array<{
+    word: string;
+    startTime: number | null;
+    endTime: number | null;
+  }>;
 }
 
+// ============================================
+// Structured Metrics Types
+// ============================================
+
+export interface EOUMetrics {
+  metricType: 'eou';
+  endOfUtteranceDelay: number;
+  transcriptionDelay: number;
+  onUserTurnCompletedDelay: number;
+  speechId: string;
+}
+
+export interface STTMetrics {
+  metricType: 'stt';
+  audioDuration: number;
+  duration: number;
+  streamed: boolean;
+}
+
+export interface LLMMetrics {
+  metricType: 'llm';
+  duration: number;
+  completionTokens: number;
+  promptTokens: number;
+  promptCachedTokens: number;
+  ttft: number;
+  tokensPerSecond: number;
+  speechId: string;
+  totalTokens: number;
+}
+
+export interface TTSMetrics {
+  metricType: 'tts';
+  audioDuration: number;
+  charactersCount: number;
+  duration: number;
+  ttfb: number;
+  speechId: string;
+  streamed: boolean;
+}
+
+export interface TotalLatencyMetrics {
+  metricType: 'total_latency';
+  speechId: string;
+  totalLatency: number;
+  eouDelay: number;
+  llmTtft: number;
+  ttsTtfb: number;
+}
+
+export interface UnknownMetrics {
+  metricType: 'unknown';
+  typeName: string;
+  [key: string]: any;
+}
+
+export type MetricsData = EOUMetrics | STTMetrics | LLMMetrics | TTSMetrics | TotalLatencyMetrics | UnknownMetrics;
+
 export interface MetricsCollectedEventData {
-  metricsType: string;
-  metrics: Record<string, any>;
+  metricsType?: string; // Legacy field
+  metrics?: Record<string, any>; // Legacy field
   offsetMs?: number;
+  // New structured format (union type allows either old or new format)
+  metricType?: string;
+  // All fields from structured metrics types
+  [key: string]: any;
 }
 
 // ============================================
@@ -219,6 +291,7 @@ export type CallEventType =
   | 'user_state_changed'
   | 'speech_created'
   | 'metrics_collected'
+  | 'total_latency'
   | 'knowledge_retrieved'
   // Summary events
   | 'session_complete'
