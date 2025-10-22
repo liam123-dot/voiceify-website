@@ -200,8 +200,8 @@ export async function GET(
     }
 
     // Calculate latency statistics
-    console.log(`[GET /latency-stats] Calculating latency statistics...`)
-    const stats = await calculateLatencyStats(callId, supabase)
+    console.log(`[GET /latency-stats] Calculating latency statistics..., save if it doesn't exist`)
+    const stats = await calculateLatencyStats(callId, supabase, { saveToDatabase: true })
 
     if (!stats) {
       console.log('[GET /latency-stats] No metrics data available for this call')
