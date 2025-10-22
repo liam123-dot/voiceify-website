@@ -141,12 +141,22 @@ export interface LatencyStats {
   count: number;
 }
 
+export interface SpeechLatencyBreakdown {
+  speechId: string;
+  eou: number | null;
+  rag: number | null;
+  llm: number | null;
+  tts: number | null;
+  total: number;
+}
+
 export interface CallLatencyStatsEventData {
   eou: LatencyStats | null;
   llm: LatencyStats | null;
   tts: LatencyStats | null;
   rag: LatencyStats | null;
   total: LatencyStats | null;
+  speechParts: SpeechLatencyBreakdown[];
 }
 
 // ============================================

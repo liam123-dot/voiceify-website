@@ -968,8 +968,105 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                           );
                         };
 
+                        // Calculate average proportional breakdown
+                        const calculateProportionalBreakdown = () => {
+                          const eouAvg = latencyStats.eou?.avg || 0
+                          const ragAvg = latencyStats.rag?.avg || 0
+                          const llmAvg = latencyStats.llm?.avg || 0
+                          const ttsAvg = latencyStats.tts?.avg || 0
+                          const total = eouAvg + ragAvg + llmAvg + ttsAvg
+                          
+                          if (total === 0) return null
+                          
+                          return {
+                            eou: { value: eouAvg, percentage: (eouAvg / total) * 100 },
+                            rag: { value: ragAvg, percentage: (ragAvg / total) * 100 },
+                            llm: { value: llmAvg, percentage: (llmAvg / total) * 100 },
+                            tts: { value: ttsAvg, percentage: (ttsAvg / total) * 100 },
+                            total
+                          }
+                        }
+                        
+                        const breakdown = calculateProportionalBreakdown()
+
                         return (
                           <>
+                            {/* Proportional Breakdown Bar */}
+                            {breakdown && (
+                              <div className="p-4 border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg">
+                                <div className="text-sm font-semibold mb-3">Average Latency Breakdown</div>
+                                <div className="flex h-8 rounded-lg overflow-hidden border border-primary/20 mb-3">
+                                  {breakdown.eou.percentage > 0 && (
+                                    <div
+                                      className="bg-blue-500 flex items-center justify-center text-white text-xs font-semibold transition-all hover:opacity-80"
+                                      style={{ width: `${breakdown.eou.percentage}%` }}
+                                      title={`EOU: ${formatLatency(breakdown.eou.value)}`}
+                                    >
+                                      {breakdown.eou.percentage > 15 && 'EOU'}
+                                    </div>
+                                  )}
+                                  {breakdown.rag.percentage > 0 && (
+                                    <div
+                                      className="bg-purple-500 flex items-center justify-center text-white text-xs font-semibold transition-all hover:opacity-80"
+                                      style={{ width: `${breakdown.rag.percentage}%` }}
+                                      title={`RAG: ${formatLatency(breakdown.rag.value)}`}
+                                    >
+                                      {breakdown.rag.percentage > 15 && 'RAG'}
+                                    </div>
+                                  )}
+                                  {breakdown.llm.percentage > 0 && (
+                                    <div
+                                      className="bg-green-500 flex items-center justify-center text-white text-xs font-semibold transition-all hover:opacity-80"
+                                      style={{ width: `${breakdown.llm.percentage}%` }}
+                                      title={`LLM: ${formatLatency(breakdown.llm.value)}`}
+                                    >
+                                      {breakdown.llm.percentage > 15 && 'LLM'}
+                                    </div>
+                                  )}
+                                  {breakdown.tts.percentage > 0 && (
+                                    <div
+                                      className="bg-orange-500 flex items-center justify-center text-white text-xs font-semibold transition-all hover:opacity-80"
+                                      style={{ width: `${breakdown.tts.percentage}%` }}
+                                      title={`TTS: ${formatLatency(breakdown.tts.value)}`}
+                                    >
+                                      {breakdown.tts.percentage > 15 && 'TTS'}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  {breakdown.eou.percentage > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                                      <span>EOU: {breakdown.eou.percentage.toFixed(1)}% ({formatLatency(breakdown.eou.value)})</span>
+                                    </div>
+                                  )}
+                                  {breakdown.rag.percentage > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-purple-500 rounded"></div>
+                                      <span>RAG: {breakdown.rag.percentage.toFixed(1)}% ({formatLatency(breakdown.rag.value)})</span>
+                                    </div>
+                                  )}
+                                  {breakdown.llm.percentage > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                                      <span>LLM: {breakdown.llm.percentage.toFixed(1)}% ({formatLatency(breakdown.llm.value)})</span>
+                                    </div>
+                                  )}
+                                  {breakdown.tts.percentage > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-orange-500 rounded"></div>
+                                      <span>TTS: {breakdown.tts.percentage.toFixed(1)}% ({formatLatency(breakdown.tts.value)})</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-primary/20">
+                                  <div className="text-xs text-muted-foreground">
+                                    Total Average: {formatLatency(breakdown.total)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
                             {latencyStats.total && (
                               <div className="p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
                                 {renderStatsRow('Total Latency', latencyStats.total, { good: 1.0, warn: 2.0 })}

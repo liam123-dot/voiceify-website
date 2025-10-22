@@ -12,12 +12,22 @@ interface LatencyStats {
   count: number
 }
 
+interface SpeechLatencyBreakdown {
+  speechId: string
+  eou: number | null
+  rag: number | null
+  llm: number | null
+  tts: number | null
+  total: number
+}
+
 interface CallLatencyStatsData {
   eou: LatencyStats | null
   llm: LatencyStats | null
   tts: LatencyStats | null
   rag: LatencyStats | null
   total: LatencyStats | null
+  speechParts: SpeechLatencyBreakdown[]
 }
 
 // Helper function to calculate percentile
@@ -77,6 +87,15 @@ export async function calculateLatencyStats(
     const ttsValues: number[] = []
     const ragValues: number[] = []
     const totalValues: number[] = []
+    
+    // Track metrics by speech ID for per-speech breakdown
+    const speechMetrics = new Map<string, {
+      eou?: number
+      rag?: number
+      llm?: number
+      tts?: number
+      total?: number
+    }>()
 
     metricsEvents.forEach((event) => {
       const eventData = event.data as Record<string, unknown>
@@ -91,22 +110,48 @@ export async function calculateLatencyStats(
         console.log(`[calculateLatencyStats] event type: ${event.event_type}, metricType: ${metricType}`)
       }
 
+      const speechId = metrics.speechId as string | undefined
+      
       if (event.event_type === 'metrics_collected') {
         if (metricType === 'eou' && typeof metrics.endOfUtteranceDelay === 'number') {
           console.log(`[calculateLatencyStats] Adding EOU value: ${metrics.endOfUtteranceDelay}`)
           eouValues.push(metrics.endOfUtteranceDelay)
+          
+          // Track by speech ID
+          if (speechId) {
+            const existing = speechMetrics.get(speechId) || {}
+            speechMetrics.set(speechId, { ...existing, eou: metrics.endOfUtteranceDelay })
+          }
         } else if (metricType === 'llm' && typeof metrics.ttft === 'number') {
           console.log(`[calculateLatencyStats] Adding LLM value: ${metrics.ttft}`)
           llmValues.push(metrics.ttft)
+          
+          // Track by speech ID
+          if (speechId) {
+            const existing = speechMetrics.get(speechId) || {}
+            speechMetrics.set(speechId, { ...existing, llm: metrics.ttft })
+          }
         } else if (metricType === 'tts' && typeof metrics.ttfb === 'number') {
           console.log(`[calculateLatencyStats] Adding TTS value: ${metrics.ttfb}`)
           ttsValues.push(metrics.ttfb)
+          
+          // Track by speech ID
+          if (speechId) {
+            const existing = speechMetrics.get(speechId) || {}
+            speechMetrics.set(speechId, { ...existing, tts: metrics.ttfb })
+          }
         }
       }
       if (event.event_type === 'total_latency') {
         if (typeof metrics.totalLatency === 'number') {
           console.log(`[calculateLatencyStats] Adding total latency value: ${metrics.totalLatency}`)
           totalValues.push(metrics.totalLatency)
+          
+          // Track by speech ID
+          if (speechId) {
+            const existing = speechMetrics.get(speechId) || {}
+            speechMetrics.set(speechId, { ...existing, total: metrics.totalLatency })
+          }
         }
       }
       
@@ -114,14 +159,48 @@ export async function calculateLatencyStats(
       if (event.event_type === 'knowledge_retrieved_with_speech') {
         // RAG latency is stored in latency_ms field inside the nested data structure
         if (typeof metrics.latency_ms === 'number') {
-          console.log(`[calculateLatencyStats] Adding RAG latency value: ${metrics.latency_ms}ms (${metrics.latency_ms / 1000}s)`)
+          const ragLatencySeconds = metrics.latency_ms / 1000
+          console.log(`[calculateLatencyStats] Adding RAG latency value: ${metrics.latency_ms}ms (${ragLatencySeconds}s)`)
           // Convert from milliseconds to seconds to match other metrics
-          ragValues.push(metrics.latency_ms / 1000)
+          ragValues.push(ragLatencySeconds)
+          
+          // Track by speech ID
+          if (speechId) {
+            const existing = speechMetrics.get(speechId) || {}
+            speechMetrics.set(speechId, { ...existing, rag: ragLatencySeconds })
+          }
         }
       }
     })
 
     console.log(`[calculateLatencyStats] Collected values - EOU: ${eouValues.length}, LLM: ${llmValues.length}, TTS: ${ttsValues.length}, RAG: ${ragValues.length}, Total: ${totalValues.length}`)
+    console.log(`[calculateLatencyStats] Speech metrics map has ${speechMetrics.size} entries`)
+
+    // Build speech-level breakdown
+    const speechParts: SpeechLatencyBreakdown[] = []
+    speechMetrics.forEach((metrics, speechId) => {
+      // Calculate total latency including RAG if present
+      // Total = EOU + RAG (if any) + LLM + TTS
+      let calculatedTotal = 0
+      if (metrics.eou) calculatedTotal += metrics.eou
+      if (metrics.rag) calculatedTotal += metrics.rag
+      if (metrics.llm) calculatedTotal += metrics.llm
+      if (metrics.tts) calculatedTotal += metrics.tts
+      
+      // Use the reported total if available, otherwise use calculated
+      const total = metrics.total || calculatedTotal
+      
+      speechParts.push({
+        speechId,
+        eou: metrics.eou || null,
+        rag: metrics.rag || null,
+        llm: metrics.llm || null,
+        tts: metrics.tts || null,
+        total,
+      })
+    })
+    
+    console.log(`[calculateLatencyStats] Built ${speechParts.length} speech parts`)
 
     // Calculate statistics for each metric type
     const stats = {
@@ -130,6 +209,7 @@ export async function calculateLatencyStats(
       tts: calculateStats(ttsValues),
       rag: calculateStats(ragValues),
       total: calculateStats(totalValues),
+      speechParts,
     }
 
     console.log('[calculateLatencyStats] Calculated stats:', JSON.stringify(stats, null, 2))
@@ -137,18 +217,32 @@ export async function calculateLatencyStats(
     // Save to database if requested
     if (options?.saveToDatabase && (stats.eou || stats.llm || stats.tts || stats.rag || stats.total)) {
       console.log('[calculateLatencyStats] Saving stats to database...')
-      const { error: saveError } = await supabase
-        .from('agent_events')
-        .insert({
-          call_id: callId,
-          event_type: 'call_latency_stats',
-          data: stats,
-        })
       
-      if (saveError) {
-        console.error('[calculateLatencyStats] Error saving stats to database:', saveError)
+      // Check if stats already exist to avoid duplicates
+      const { data: existingStats } = await supabase
+        .from('agent_events')
+        .select('id')
+        .eq('call_id', callId)
+        .eq('event_type', 'call_latency_stats')
+        .single()
+      
+      if (existingStats) {
+        console.log('[calculateLatencyStats] Stats already exist, skipping save')
       } else {
-        console.log('[calculateLatencyStats] ✅ Latency statistics saved to agent_events')
+        const { error: saveError } = await supabase
+          .from('agent_events')
+          .insert({
+            call_id: callId,
+            event_type: 'call_latency_stats',
+            data: stats,
+            time: new Date().toISOString(),
+          })
+        
+        if (saveError) {
+          console.error('[calculateLatencyStats] Error saving stats to database:', saveError)
+        } else {
+          console.log('[calculateLatencyStats] ✅ Latency statistics saved to agent_events')
+        }
       }
     }
     
