@@ -112,12 +112,13 @@ export async function calculateLatencyStats(
       
       // Handle RAG latency events
       if (event.event_type === 'knowledge_retrieved_with_speech') {
+        console.log(`[calculateLatencyStats] event data: ${JSON.stringify(eventData.latency_ms, null, 2)}`)
         // RAG latency is stored in latency_ms field at the top level of eventData
-        if (typeof eventData.latency_ms === 'number') {
+        // if (typeof eventData.latency_ms === 'number') {
           console.log(`[calculateLatencyStats] Adding RAG latency value: ${eventData.latency_ms}`)
           // Convert from milliseconds to seconds to match other metrics
-          ragValues.push(eventData.latency_ms / 1000)
-        }
+          ragValues.push(eventData.latency_ms as number / 1000)
+        // }
       }
     })
 
