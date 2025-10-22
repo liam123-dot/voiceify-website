@@ -199,7 +199,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         instructions: 'You are a helpful AI assistant. Be friendly, professional, and concise in your responses.',
         realtimeVoice: 'alloy',
         realtimeModel: 'gpt-realtime-mini',
-        sttModel: 'deepgram/nova-2-phonecall',
+        sttModel: 'deepgram/nova-3',
         sttInferenceType: 'livekit',
         llmModel: 'openai/gpt-4o-mini',
         llmInferenceType: 'livekit',
@@ -236,7 +236,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
       instructions: initialConfig.instructions || 'You are a helpful AI assistant. Be friendly, professional, and concise in your responses.',
       realtimeVoice: (initialConfig.realtimeModel?.voice as FormValues['realtimeVoice']) || 'alloy',
       realtimeModel: (initialConfig.realtimeModel?.model as FormValues['realtimeModel']) || 'gpt-4o-mini-realtime-preview',
-      sttModel: initialConfig.pipeline?.stt?.model || 'deepgram/nova-2-phonecall',
+      sttModel: initialConfig.pipeline?.stt?.model || 'deepgram/nova-3',
       sttInferenceType: (initialConfig.pipeline?.stt?.inferenceType as FormValues['sttInferenceType']) || 'livekit',
       llmModel: initialConfig.pipeline?.llm?.model || 'openai/gpt-4o-mini',
       llmInferenceType: (initialConfig.pipeline?.llm?.inferenceType as FormValues['llmInferenceType']) || 'livekit',
@@ -396,6 +396,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
     }
   }
 
+  const sttModel = form.watch('sttModel')
   const llmTemperature = form.watch('llmTemperature')
   const ttsVoiceId = form.watch('ttsVoiceId')
   const ttsStability = form.watch('ttsStability')
@@ -870,6 +871,30 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                       </FormItem>
                     )}
                   />
+
+                  {/* Show inference type selector only for Deepgram Nova-3 */}
+                  {sttModel === 'deepgram/nova-3' && (
+                    <FormField
+                      control={form.control}
+                      name="sttInferenceType"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Use LiveKit Inference</FormLabel>
+                            <FormDescription>
+                              When enabled, uses LiveKit&apos;s managed inference. When disabled, uses Deepgram plugin directly.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value === 'livekit'}
+                              onCheckedChange={(checked) => field.onChange(checked ? 'livekit' : 'direct')}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
 
                 <Separator />
