@@ -101,12 +101,21 @@ export interface VADOptions {
 }
 
 /**
+ * Turn Detector (EOU) options for MultilingualModel
+ */
+export interface TurnDetectorOptions {
+  minEndpointingDelay?: number; // Delay before considering turn complete (ms)
+  falseInterruptionTimeout?: number; // Time to wait before resuming after false interruption (ms)
+}
+
+/**
  * Turn detection and VAD configuration
  */
 export interface TurnDetectionConfig {
   type: TurnDetectionType;
   vadProvider?: VADProvider; // Voice Activity Detection provider
   vadOptions?: VADOptions;
+  turnDetectorOptions?: TurnDetectorOptions; // Options for multilingual turn detector
 }
 
 /**

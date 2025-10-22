@@ -85,6 +85,15 @@ const formSchema = z.object({
   firstMessage: z.string().optional(),
   firstMessagePrompt: z.string().optional(),
   firstMessageAllowInterruptions: z.boolean(),
+  
+  // Turn detection and VAD configuration
+  turnDetectionType: z.enum(['multilingual', 'server-vad', 'disabled']).optional(),
+  vadMinSpeechDuration: z.number().min(50).max(500).optional(),
+  vadSilenceTimeout: z.number().min(200).max(2000).optional(),
+  vadPrefixPadding: z.number().min(0).max(500).optional(),
+  vadSilenceThreshold: z.number().min(0).max(1).optional(),
+  turnDetectorMinEndpointingDelay: z.number().min(0).max(1000).optional(),
+  turnDetectorFalseInterruptionTimeout: z.number().min(0).max(2000).optional(),
 }).superRefine((data, ctx) => {
   // Validate realtime fields when pipeline type is realtime
   if (data.pipelineType === 'realtime') {
@@ -207,6 +216,14 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         firstMessage: 'Hello! How can I help you today?',
         firstMessagePrompt: 'Greet the user warmly and ask how you can help them.',
         firstMessageAllowInterruptions: false,
+        // Turn detection and VAD defaults
+        turnDetectionType: 'multilingual',
+        vadMinSpeechDuration: 200,
+        vadSilenceTimeout: 800,
+        vadPrefixPadding: 300,
+        vadSilenceThreshold: 0.5,
+        turnDetectorMinEndpointingDelay: 500,
+        turnDetectorFalseInterruptionTimeout: 1000,
       }
     }
 
@@ -243,6 +260,14 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
       firstMessage: initialConfig.settings?.firstMessage || 'Hello! How can I help you today?',
       firstMessagePrompt: initialConfig.settings?.firstMessagePrompt || 'Greet the user warmly and ask how you can help them.',
       firstMessageAllowInterruptions: initialConfig.settings?.firstMessageAllowInterruptions ?? false,
+      // Turn detection and VAD from initialConfig
+      turnDetectionType: (initialConfig.turnDetection?.type as FormValues['turnDetectionType']) || 'multilingual',
+      vadMinSpeechDuration: initialConfig.turnDetection?.vadOptions?.minSpeechDuration ?? 200,
+      vadSilenceTimeout: initialConfig.turnDetection?.vadOptions?.silenceTimeout ?? 800,
+      vadPrefixPadding: initialConfig.turnDetection?.vadOptions?.prefixPadding ?? 300,
+      vadSilenceThreshold: initialConfig.turnDetection?.vadOptions?.silenceThreshold ?? 0.5,
+      turnDetectorMinEndpointingDelay: initialConfig.turnDetection?.turnDetectorOptions?.minEndpointingDelay ?? 500,
+      turnDetectorFalseInterruptionTimeout: initialConfig.turnDetection?.turnDetectorOptions?.falseInterruptionTimeout ?? 1000,
     }
   }
 
@@ -294,14 +319,18 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
           },
         }),
         turnDetection: {
-          type: 'server-vad',
+          type: values.turnDetectionType || 'multilingual',
           vadProvider: 'silero',
           vadOptions: {
-            minSpeechDuration: 200,
-            silenceTimeout: 800,
-            prefixPadding: 300,
-            silenceThreshold: 0.5,
+            minSpeechDuration: values.vadMinSpeechDuration ?? 200,
+            silenceTimeout: values.vadSilenceTimeout ?? 800,
+            prefixPadding: values.vadPrefixPadding ?? 300,
+            silenceThreshold: values.vadSilenceThreshold ?? 0.5,
           },
+          turnDetectorOptions: values.turnDetectionType === 'multilingual' ? {
+            minEndpointingDelay: values.turnDetectorMinEndpointingDelay ?? 500,
+            falseInterruptionTimeout: values.turnDetectorFalseInterruptionTimeout ?? 1000,
+          } : undefined,
         },
         noiseCancellation: {
           enabled: values.noiseCancellation,
@@ -365,6 +394,13 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   const ttsSimilarityBoost = form.watch('ttsSimilarityBoost')
   const ttsStyle = form.watch('ttsStyle')
   const ttsSpeed = form.watch('ttsSpeed')
+  const turnDetectionType = form.watch('turnDetectionType')
+  const vadMinSpeechDuration = form.watch('vadMinSpeechDuration')
+  const vadSilenceTimeout = form.watch('vadSilenceTimeout')
+  const vadPrefixPadding = form.watch('vadPrefixPadding')
+  const vadSilenceThreshold = form.watch('vadSilenceThreshold')
+  const turnDetectorMinEndpointingDelay = form.watch('turnDetectorMinEndpointingDelay')
+  const turnDetectorFalseInterruptionTimeout = form.watch('turnDetectorFalseInterruptionTimeout')
 
   // Fetch all available voices from ElevenLabs
   const fetchVoices = async () => {
@@ -1289,6 +1325,266 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                     </CollapsibleContent>
                   </Collapsible>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Turn Detection and VAD Configuration */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Turn Detection & VAD</CardTitle>
+                <CardDescription>
+                  Configure how the agent detects when a user has finished speaking
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Turn Detection Type */}
+                <FormField
+                  control={form.control}
+                  name="turnDetectionType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Turn Detection Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select turn detection type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="multilingual">
+                            <div className="flex flex-col">
+                              <span className="font-medium">Multilingual (EOU + VAD)</span>
+                              <span className="text-xs text-muted-foreground">
+                                Uses semantic understanding and VAD for best turn detection
+                              </span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="server-vad">
+                            <div className="flex flex-col">
+                              <span className="font-medium">Server VAD Only</span>
+                              <span className="text-xs text-muted-foreground">
+                                Basic voice activity detection without semantic analysis
+                              </span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="disabled">
+                            <div className="flex flex-col">
+                              <span className="font-medium">Disabled</span>
+                              <span className="text-xs text-muted-foreground">
+                                No automatic turn detection
+                              </span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Multilingual mode reduces interruptions by 85% compared to VAD-only
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Separator />
+
+                {/* VAD Settings */}
+                {turnDetectionType !== 'disabled' && (
+                  <>
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Voice Activity Detection (VAD) Settings</h4>
+                      
+                      {/* Min Speech Duration */}
+                      <FormField
+                        control={form.control}
+                        name="vadMinSpeechDuration"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Minimum Speech Duration</FormLabel>
+                              <span className="text-sm font-mono text-muted-foreground">
+                                {vadMinSpeechDuration ?? 200}ms
+                              </span>
+                            </div>
+                            <FormControl>
+                              <Slider
+                                min={50}
+                                max={500}
+                                step={10}
+                                value={[field.value ?? 200]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="py-4"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Minimum duration of speech to be considered valid
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Silence Timeout */}
+                      <FormField
+                        control={form.control}
+                        name="vadSilenceTimeout"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Silence Timeout</FormLabel>
+                              <span className="text-sm font-mono text-muted-foreground">
+                                {vadSilenceTimeout ?? 800}ms
+                              </span>
+                            </div>
+                            <FormControl>
+                              <Slider
+                                min={200}
+                                max={2000}
+                                step={50}
+                                value={[field.value ?? 800]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="py-4"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Duration of silence before considering speech ended
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Prefix Padding */}
+                      <FormField
+                        control={form.control}
+                        name="vadPrefixPadding"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Prefix Padding</FormLabel>
+                              <span className="text-sm font-mono text-muted-foreground">
+                                {vadPrefixPadding ?? 300}ms
+                              </span>
+                            </div>
+                            <FormControl>
+                              <Slider
+                                min={0}
+                                max={500}
+                                step={25}
+                                value={[field.value ?? 300]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="py-4"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Audio padding before speech detection starts
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Silence Threshold */}
+                      <FormField
+                        control={form.control}
+                        name="vadSilenceThreshold"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Silence Threshold</FormLabel>
+                              <span className="text-sm font-mono text-muted-foreground">
+                                {vadSilenceThreshold?.toFixed(2) ?? '0.50'}
+                              </span>
+                            </div>
+                            <FormControl>
+                              <Slider
+                                min={0}
+                                max={1}
+                                step={0.05}
+                                value={[field.value ?? 0.5]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="py-4"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Threshold for detecting silence (0.0 = most sensitive, 1.0 = least sensitive)
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* EOU Settings (only for multilingual) */}
+                    {turnDetectionType === 'multilingual' && (
+                      <>
+                        <Separator />
+                        <div className="space-y-4">
+                          <h4 className="text-sm font-medium">End-of-Utterance (EOU) Settings</h4>
+                          
+                          {/* Min Endpointing Delay */}
+                          <FormField
+                            control={form.control}
+                            name="turnDetectorMinEndpointingDelay"
+                            render={({ field }) => (
+                              <FormItem>
+                                <div className="flex items-center justify-between">
+                                  <FormLabel>Minimum Endpointing Delay</FormLabel>
+                                  <span className="text-sm font-mono text-muted-foreground">
+                                    {turnDetectorMinEndpointingDelay ?? 500}ms
+                                  </span>
+                                </div>
+                                <FormControl>
+                                  <Slider
+                                    min={0}
+                                    max={1000}
+                                    step={50}
+                                    value={[field.value ?? 500]}
+                                    onValueChange={(value) => field.onChange(value[0])}
+                                    className="py-4"
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  Delay before considering the turn complete (lower = faster response, higher = fewer interruptions)
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          {/* False Interruption Timeout */}
+                          <FormField
+                            control={form.control}
+                            name="turnDetectorFalseInterruptionTimeout"
+                            render={({ field }) => (
+                              <FormItem>
+                                <div className="flex items-center justify-between">
+                                  <FormLabel>False Interruption Timeout</FormLabel>
+                                  <span className="text-sm font-mono text-muted-foreground">
+                                    {turnDetectorFalseInterruptionTimeout ?? 1000}ms
+                                  </span>
+                                </div>
+                                <FormControl>
+                                  <Slider
+                                    min={0}
+                                    max={2000}
+                                    step={100}
+                                    value={[field.value ?? 1000]}
+                                    onValueChange={(value) => field.onChange(value[0])}
+                                    className="py-4"
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  Time to wait before resuming after a false interruption
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </>
