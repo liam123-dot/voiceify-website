@@ -221,17 +221,7 @@ export const LLM_MODELS: LLMModel[] = [
     features: ['Ultra-fast inference', 'Cost-effective', 'Open source'],
   },
   {
-    id: 'groq/llama-guard-4-12b',
-    name: 'Llama Guard 4 12B',
-    provider: 'groq',
-    inferenceType: 'direct',
-    inputPricePerMillion: 0.20,
-    outputPricePerMillion: 0.20,
-    description: 'Meta\'s Llama Guard 4 for content moderation',
-    features: ['Ultra-fast', '1200 T/sec', 'Content moderation', 'Safety'],
-  },
-  {
-    id: 'groq/gpt-oss-120b',
+    id: 'groq/openai/gpt-oss-120b',
     name: 'GPT-OSS 120B',
     provider: 'groq',
     inferenceType: 'direct',
@@ -241,7 +231,7 @@ export const LLM_MODELS: LLMModel[] = [
     features: ['High capability', '500 T/sec', 'Open source', '120B parameters'],
   },
   {
-    id: 'groq/gpt-oss-20b',
+    id: 'groq/openai/gpt-oss-20b',
     name: 'GPT-OSS 20B',
     provider: 'groq',
     inferenceType: 'direct',
