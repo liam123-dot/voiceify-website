@@ -3,15 +3,15 @@
  * Based on LiveKit Inference API: https://livekit.io/pricing/inference
  */
 
-export type ModelProvider = 
-  | 'openai' 
-  | 'azure' 
-  | 'google' 
-  | 'deepgram' 
-  | 'assemblyai' 
-  | 'cartesia' 
-  | 'elevenlabs' 
-  | 'inworld' 
+export type ModelProvider =
+  | 'openai'
+  | 'azure'
+  | 'google'
+  | 'deepgram'
+  | 'assemblyai'
+  | 'cartesia'
+  | 'elevenlabs'
+  | 'inworld'
   | 'rime'
   | 'baseten'
   | 'groq'
@@ -199,6 +199,46 @@ export const LLM_MODELS: LLMModel[] = [
     description: 'Efficient GPT-4.1 variant',
     features: ['Balanced performance', 'Cost-effective'],
   },
+  {
+    id: 'openai/gpt-4.1-nano',
+    name: 'GPT-4.1 Nano',
+    provider: 'azure',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 0.10,
+    outputPricePerMillion: 0.40,
+    description: 'Most compact GPT-4.1 variant',
+    features: ['Ultra cost-effective', 'Fast', 'Efficient'],
+  },
+  {
+    id: 'openai/gpt-5',
+    name: 'GPT-5',
+    provider: 'azure',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 1.25,
+    outputPricePerMillion: 10.00,
+    description: 'Next generation GPT model',
+    features: ['State-of-the-art', 'High capability', 'Advanced reasoning'],
+  },
+  {
+    id: 'openai/gpt-5-mini',
+    name: 'GPT-5 Mini',
+    provider: 'azure',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 0.25,
+    outputPricePerMillion: 2.00,
+    description: 'Compact GPT-5 variant',
+    features: ['Advanced capability', 'Cost-effective', 'Fast'],
+  },
+  {
+    id: 'openai/gpt-5-nano',
+    name: 'GPT-5 Nano',
+    provider: 'azure',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 0.05,
+    outputPricePerMillion: 0.40,
+    description: 'Most compact GPT-5 variant',
+    features: ['Ultra cost-effective', 'Efficient', 'Fast'],
+  },
   // Groq Models
   {
     id: 'groq/llama-3.1-8b-instant',
@@ -239,6 +279,79 @@ export const LLM_MODELS: LLMModel[] = [
     outputPricePerMillion: 0.30,
     description: 'Compact OpenAI open-weight model via Groq',
     features: ['Fastest inference', '1000 T/sec', 'Cost-effective', 'Open source'],
+  },
+  // Baseten Models
+  {
+    id: 'baseten/openai/gpt-oss-120b',
+    name: 'GPT-OSS 120B',
+    provider: 'baseten',
+    inferenceType: 'direct',
+    inputPricePerMillion: 0.10,
+    outputPricePerMillion: 0.50,
+    description: 'OpenAI\'s flagship open-weight model via Baseten',
+    features: ['High capability', 'Open source', '120B parameters'],
+  },
+  // Cerebras Models
+  {
+    id: 'cerebras/openai/gpt-oss-120b',
+    name: 'GPT-OSS 120B',
+    provider: 'cerebras',
+    inferenceType: 'direct',
+    inputPricePerMillion: 0.35,
+    outputPricePerMillion: 0.75,
+    description: 'OpenAI\'s flagship open-weight model via Cerebras',
+    features: ['High capability', 'Open source', '120B parameters'],
+  },
+  // Google Gemini Models
+  {
+    id: 'google/gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    provider: 'google',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 2.50,
+    outputPricePerMillion: 15.00,
+    description: 'Most capable Gemini model',
+    features: ['Highest capability', 'Advanced reasoning', 'Multimodal'],
+  },
+  {
+    id: 'google/gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'google',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 0.30,
+    outputPricePerMillion: 2.50,
+    description: 'Fast and efficient Gemini model',
+    features: ['Fast', 'Cost-effective', 'Balanced performance'],
+  },
+  {
+    id: 'google/gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite',
+    provider: 'google',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 0.10,
+    outputPricePerMillion: 0.40,
+    description: 'Lightweight Gemini 2.5 variant',
+    features: ['Ultra-fast', 'Most cost-effective', 'Efficient'],
+  },
+  {
+    id: 'google/gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    provider: 'google',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 0.10,
+    outputPricePerMillion: 0.40,
+    description: 'Fast Gemini 2.0 model',
+    features: ['Fast', 'Cost-effective', 'Reliable'],
+  },
+  {
+    id: 'google/gemini-2.0-flash-lite',
+    name: 'Gemini 2.0 Flash Lite',
+    provider: 'google',
+    inferenceType: 'livekit',
+    inputPricePerMillion: 0.07,
+    outputPricePerMillion: 0.30,
+    description: 'Most compact Gemini 2.0 variant',
+    features: ['Ultra-fast', 'Lowest cost', 'Efficient'],
   },
 ];
 

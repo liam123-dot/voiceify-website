@@ -63,10 +63,13 @@ const formSchema = z.object({
   
   // Pipeline fields
   sttModel: z.string().optional(), // LiveKit format: "deepgram/nova-2-phonecall"
+  sttInferenceType: z.enum(['livekit', 'direct']).optional(),
   llmModel: z.string().optional(), // LiveKit format: "openai/gpt-4o-mini"
+  llmInferenceType: z.enum(['livekit', 'direct']).optional(),
   llmTemperature: z.number().min(0).max(1).optional(),
   ttsModelId: z.string().optional(), // LiveKit format: "elevenlabs/eleven_flash_v2_5"
   ttsVoiceId: z.string().optional(), // Voice ID: "EXAVITQu4vr4xnSDxMaL"
+  ttsInferenceType: z.enum(['livekit', 'direct']).optional(),
   
   // ElevenLabs advanced TTS settings
   ttsStability: z.number().min(0.25).max(1).optional(),
@@ -197,10 +200,13 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         realtimeVoice: 'alloy',
         realtimeModel: 'gpt-realtime-mini',
         sttModel: 'deepgram/nova-2-phonecall',
+        sttInferenceType: 'livekit',
         llmModel: 'openai/gpt-4o-mini',
+        llmInferenceType: 'livekit',
         llmTemperature: 0.8,
         ttsModelId: 'elevenlabs/eleven_flash_v2_5', // Fixed to Eleven Flash v2.5
         ttsVoiceId: '',
+        ttsInferenceType: 'livekit',
         ttsStability: 0.5,
         ttsSimilarityBoost: 0.75,
         ttsStyle: 0.0,
@@ -231,7 +237,9 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
       realtimeVoice: (initialConfig.realtimeModel?.voice as FormValues['realtimeVoice']) || 'alloy',
       realtimeModel: (initialConfig.realtimeModel?.model as FormValues['realtimeModel']) || 'gpt-4o-mini-realtime-preview',
       sttModel: initialConfig.pipeline?.stt?.model || 'deepgram/nova-2-phonecall',
+      sttInferenceType: (initialConfig.pipeline?.stt?.inferenceType as FormValues['sttInferenceType']) || 'livekit',
       llmModel: initialConfig.pipeline?.llm?.model || 'openai/gpt-4o-mini',
+      llmInferenceType: (initialConfig.pipeline?.llm?.inferenceType as FormValues['llmInferenceType']) || 'livekit',
       llmTemperature: initialConfig.pipeline?.llm?.temperature ?? 0.8,
       // Fixed to Eleven Flash v2.5
       ttsModelId: 'elevenlabs/eleven_flash_v2_5',
@@ -243,6 +251,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         const parts = ttsConfig.model.split(':');
         return parts.length > 1 ? parts[1] : '';
       })(),
+      ttsInferenceType: (initialConfig.pipeline?.tts?.inferenceType as FormValues['ttsInferenceType']) || 'livekit',
       // ElevenLabs TTS settings
       ttsStability: initialConfig.pipeline?.tts?.stability ?? 0.5,
       ttsSimilarityBoost: initialConfig.pipeline?.tts?.similarity_boost ?? 0.75,
@@ -297,16 +306,19 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
             stt: {
               provider: (values.sttModel?.split('/')[0] || 'deepgram') as 'deepgram' | 'assemblyai' | 'cartesia',
               model: values.sttModel || 'deepgram/nova-2-phonecall',
+              inferenceType: values.sttInferenceType || 'livekit',
               language: 'en',
             },
             llm: {
               provider: (values.llmModel?.split('/')[0] || 'openai') as 'openai' | 'azure' | 'google' | 'baseten' | 'groq' | 'cerebras',
               model: values.llmModel || 'openai/gpt-4o-mini',
+              inferenceType: values.llmInferenceType || 'livekit',
               temperature: values.llmTemperature ?? 0.8,
             },
             tts: {
               // Combine model and voice into LiveKit format: "provider/model:voiceId"
               model: `${values.ttsModelId || 'elevenlabs/eleven_flash_v2_5'}:${values.ttsVoiceId || 'EXAVITQu4vr4xnSDxMaL'}`,
+              inferenceType: values.ttsInferenceType || 'livekit',
               stability: values.ttsStability ?? 0.5,
               similarity_boost: values.ttsSimilarityBoost ?? 0.75,
               style: values.ttsStyle ?? 0.0,
@@ -885,12 +897,40 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                                   <span className="text-xs text-muted-foreground">
                                     {model.description} {model.recommended && '(Recommended)'}
                                   </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Inference: {model.inferenceType === 'livekit' ? 'LiveKit' : 'Direct'}
+                                  </span>
                                 </div>
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        <FormDescription>
+                          LiveKit Inference provides managed, optimized model hosting. Direct uses provider APIs directly.
+                        </FormDescription>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Show inference type selector for models that support both */}
+                  <FormField
+                    control={form.control}
+                    name="llmInferenceType"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Use LiveKit Inference</FormLabel>
+                          <FormDescription>
+                            When enabled, uses LiveKit&apos;s managed inference. When disabled, calls provider API directly.
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value === 'livekit'}
+                            onCheckedChange={(checked) => field.onChange(checked ? 'livekit' : 'direct')}
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />
