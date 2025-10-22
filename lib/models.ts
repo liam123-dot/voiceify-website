@@ -201,6 +201,16 @@ export const LLM_MODELS: LLMModel[] = [
   },
   // Groq Models
   {
+    id: 'groq/llama-3.1-8b-instant',
+    name: 'Llama 3.1 8B Instant',
+    provider: 'groq',
+    inferenceType: 'direct',
+    inputPricePerMillion: 0.05,
+    outputPricePerMillion: 0.08,
+    description: 'Fast and compact Llama 3.1 model via Groq',
+    features: ['Ultra-fast inference', 'Cost-effective', 'Open source', '560 T/sec'],
+  },
+  {
     id: 'groq/llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B Versatile',
     provider: 'groq',
@@ -209,6 +219,36 @@ export const LLM_MODELS: LLMModel[] = [
     outputPricePerMillion: 0.79,
     description: 'Fast open-source model via Groq',
     features: ['Ultra-fast inference', 'Cost-effective', 'Open source'],
+  },
+  {
+    id: 'groq/llama-4-scout-17b-16e-instruct',
+    name: 'Llama 4 Scout 17B',
+    provider: 'groq',
+    inferenceType: 'direct',
+    inputPricePerMillion: 0.11,
+    outputPricePerMillion: 0.34,
+    description: 'Latest Llama 4 Scout model with high throughput',
+    features: ['Fastest inference', '750 T/sec', 'Cost-effective', 'Preview model'],
+  },
+  {
+    id: 'groq/gpt-oss-120b',
+    name: 'GPT-OSS 120B',
+    provider: 'groq',
+    inferenceType: 'direct',
+    inputPricePerMillion: 0.15,
+    outputPricePerMillion: 0.60,
+    description: 'OpenAI\'s flagship open-weight model via Groq',
+    features: ['High capability', '500 T/sec', 'Open source', '120B parameters'],
+  },
+  {
+    id: 'groq/gpt-oss-20b',
+    name: 'GPT-OSS 20B',
+    provider: 'groq',
+    inferenceType: 'direct',
+    inputPricePerMillion: 0.075,
+    outputPricePerMillion: 0.30,
+    description: 'Compact OpenAI open-weight model via Groq',
+    features: ['Fastest inference', '1000 T/sec', 'Cost-effective', 'Open source'],
   },
 ];
 
