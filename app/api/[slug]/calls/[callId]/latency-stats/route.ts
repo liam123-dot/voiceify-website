@@ -47,6 +47,8 @@ export async function calculateLatencyStats(
   supabase: Awaited<ReturnType<typeof createClient>>
 ): Promise<CallLatencyStatsData | null> {
   try {
+    console.log(`[calculateLatencyStats] Starting latency stats calculation for call: ${callId}`)
+    
     // Fetch all metrics events for this call
     const { data: metricsEvents, error: metricsError } = await supabase
       .from('agent_events')
@@ -55,13 +57,16 @@ export async function calculateLatencyStats(
       .in('event_type', ['metrics_collected', 'total_latency'])
 
     if (metricsError) {
-      console.error('Error fetching metrics events:', metricsError)
+      console.error('[calculateLatencyStats] Error fetching metrics events:', metricsError)
       return null
     }
 
     if (!metricsEvents || metricsEvents.length === 0) {
+      console.log('[calculateLatencyStats] No metrics events found for this call')
       return null
     }
+
+    console.log(`[calculateLatencyStats] Fetched ${metricsEvents.length} metrics events`)
 
     // Collect latency values by type
     const eouValues: number[] = []
@@ -84,13 +89,19 @@ export async function calculateLatencyStats(
       }
     })
 
+    console.log(`[calculateLatencyStats] Collected values - EOU: ${eouValues.length}, LLM: ${llmValues.length}, TTS: ${ttsValues.length}, Total: ${totalValues.length}`)
+
     // Calculate statistics for each metric type
-    return {
+    const stats = {
       eou: calculateStats(eouValues),
       llm: calculateStats(llmValues),
       tts: calculateStats(ttsValues),
       total: calculateStats(totalValues),
     }
+
+    console.log('[calculateLatencyStats] Calculated stats:', JSON.stringify(stats, null, 2))
+    
+    return stats
   } catch (error) {
     console.error('Error calculating latency statistics:', error)
     return null
@@ -105,13 +116,19 @@ export async function GET(
     const supabase = await createClient()
     const { slug, callId } = await context.params
 
+    console.log(`[GET /latency-stats] Request received - slug: ${slug}, callId: ${callId}`)
+
     const { user, organizationId } = await getAuthSession(slug)
 
     if (!user || !organizationId) {
+      console.log('[GET /latency-stats] Unauthorized - no user or organization')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    console.log(`[GET /latency-stats] Authenticated - userId: ${user.id}, organizationId: ${organizationId}`)
+
     // Verify the call belongs to the user's organization
+    console.log(`[GET /latency-stats] Verifying call access for callId: ${callId}`)
     const { data: call, error: callError } = await supabase
       .from('calls')
       .select('id, organization_id')
@@ -120,17 +137,23 @@ export async function GET(
       .single()
 
     if (callError || !call) {
+      console.log('[GET /latency-stats] Call not found:', callError)
       return NextResponse.json({ error: 'Call not found' }, { status: 404 })
     }
 
+    console.log(`[GET /latency-stats] Call found - id: ${call.id}, organization_id: ${call.organization_id}`)
+
     if (call.organization_id !== organizationId) {
+      console.log('[GET /latency-stats] Unauthorized - organization mismatch')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     // Calculate latency statistics
+    console.log(`[GET /latency-stats] Calculating latency statistics...`)
     const stats = await calculateLatencyStats(callId, supabase)
 
     if (!stats) {
+      console.log('[GET /latency-stats] No metrics data available for this call')
       return NextResponse.json(
         { error: 'No metrics data available for this call' },
         { status: 404 }
@@ -138,13 +161,31 @@ export async function GET(
     }
 
     // Check if we have any data at all
-    if (!stats.eou && !stats.llm && !stats.tts && !stats.total) {
+    const hasData = stats.eou || stats.llm || stats.tts || stats.total
+    const dataSummary = {
+      hasEOU: !!stats.eou,
+      hasLLM: !!stats.llm,
+      hasTTS: !!stats.tts,
+      hasTotal: !!stats.total,
+      counts: {
+        eou: stats.eou?.count || 0,
+        llm: stats.llm?.count || 0,
+        tts: stats.tts?.count || 0,
+        total: stats.total?.count || 0,
+      }
+    }
+    
+    console.log('[GET /latency-stats] Stats summary:', JSON.stringify(dataSummary, null, 2))
+
+    if (!hasData) {
+      console.log('[GET /latency-stats] Insufficient metrics data to calculate statistics')
       return NextResponse.json(
         { error: 'Insufficient metrics data to calculate statistics' },
         { status: 404 }
       )
     }
 
+    console.log(`[GET /latency-stats] Returning stats successfully`)
     return NextResponse.json({ stats })
   } catch (error) {
     console.error('Error in GET /api/[slug]/calls/[callId]/latency-stats:', error)
