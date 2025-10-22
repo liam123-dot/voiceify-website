@@ -191,8 +191,34 @@ export function AgentDeployment({ agentId, slug }: AgentDeploymentProps) {
   if (loading) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <IconLoader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CardHeader>
+          <div className="space-y-2">
+            <div className="h-5 w-32 bg-accent animate-pulse rounded-md" />
+            <div className="h-4 w-64 bg-accent animate-pulse rounded-md" />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-3">
+            <div className="h-4 w-32 bg-accent animate-pulse rounded-md" />
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div key={i} className="flex items-center justify-between rounded-lg border p-3 bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <div className="h-5 w-32 bg-accent animate-pulse rounded-md" />
+                    <div className="h-6 w-16 bg-accent animate-pulse rounded-md" />
+                  </div>
+                  <div className="h-8 w-8 bg-accent animate-pulse rounded-md" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="h-4 w-32 bg-accent animate-pulse rounded-md" />
+            <div className="flex gap-2">
+              <div className="h-10 flex-1 bg-accent animate-pulse rounded-md" />
+              <div className="h-10 w-20 bg-accent animate-pulse rounded-md" />
+            </div>
+          </div>
         </CardContent>
       </Card>
     )

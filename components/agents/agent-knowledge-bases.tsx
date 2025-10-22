@@ -155,13 +155,57 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="space-y-2">
+              <div className="h-6 w-52 bg-accent animate-pulse rounded-md" />
+              <div className="h-4 w-full bg-accent animate-pulse rounded-md" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <div className="p-4 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between border-b pb-3 last:border-b-0">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-5 w-40 bg-accent animate-pulse rounded-md" />
+                      <div className="h-4 w-full bg-accent animate-pulse rounded-md" />
+                    </div>
+                    <div className="h-9 w-24 bg-accent animate-pulse rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-6 w-52 bg-accent animate-pulse rounded-md" />
+                <div className="h-4 w-64 bg-accent animate-pulse rounded-md" />
+              </div>
+              <div className="h-9 w-48 bg-accent animate-pulse rounded-md" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <div className="p-4 space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="flex items-center justify-between border-b pb-3 last:border-b-0">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-5 w-40 bg-accent animate-pulse rounded-md" />
+                      <div className="h-4 w-full bg-accent animate-pulse rounded-md" />
+                    </div>
+                    <div className="h-9 w-24 bg-accent animate-pulse rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
