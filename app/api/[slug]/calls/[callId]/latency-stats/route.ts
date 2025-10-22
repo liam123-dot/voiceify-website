@@ -75,31 +75,30 @@ export async function calculateLatencyStats(
     const totalValues: number[] = []
 
     metricsEvents.forEach((event) => {
-      const data = event.data as Record<string, unknown>
-      console.log(`[calculateLatencyStats] event data: ${JSON.stringify(data, null, 2)}`)
-      const metricType = data.metricType as string | undefined
-      console.log(`[calculateLatencyStats] event type: ${event.event_type}`)
+      const eventData = event.data as Record<string, unknown>
+      // The actual metrics are nested inside event.data.data
+      const metrics = eventData.data as Record<string, unknown>
+      
+      console.log(`[calculateLatencyStats] event data: ${JSON.stringify(eventData, null, 2)}`)
+      const metricType = metrics.metricType as string | undefined
+      console.log(`[calculateLatencyStats] event type: ${event.event_type}, metricType: ${metricType}`)
 
       if (event.event_type === 'metrics_collected') {
-        // temporary if to print relevant data
-        if (metricType === 'eou' || metricType === 'llm' || metricType === 'tts') {
-          console.log(`[calculateLatencyStats] event data: ${JSON.stringify(data, null, 2)}`)
-        }
-        if (metricType === 'eou' && typeof data.endOfUtteranceDelay === 'number') {
-          eouValues.push(data.endOfUtteranceDelay)
-        } else if (metricType === 'llm' && typeof data.ttft === 'number') {
-          llmValues.push(data.ttft)
-        } else if (metricType === 'tts' && typeof data.ttfb === 'number') {
-          ttsValues.push(data.ttfb)
+        if (metricType === 'eou' && typeof metrics.endOfUtteranceDelay === 'number') {
+          console.log(`[calculateLatencyStats] Adding EOU value: ${metrics.endOfUtteranceDelay}`)
+          eouValues.push(metrics.endOfUtteranceDelay)
+        } else if (metricType === 'llm' && typeof metrics.ttft === 'number') {
+          console.log(`[calculateLatencyStats] Adding LLM value: ${metrics.ttft}`)
+          llmValues.push(metrics.ttft)
+        } else if (metricType === 'tts' && typeof metrics.ttfb === 'number') {
+          console.log(`[calculateLatencyStats] Adding TTS value: ${metrics.ttfb}`)
+          ttsValues.push(metrics.ttfb)
         }
       }
       if (event.event_type === 'total_latency') {
-        // temporary if to print relevant data
-        if (metricType === 'total_latency') {
-          console.log(`[calculateLatencyStats] event data: ${JSON.stringify(data, null, 2)}`)
-        }
-        if (metricType === 'total_latency' && typeof data.totalLatency === 'number') {
-          totalValues.push(data.totalLatency)
+        if (typeof metrics.totalLatency === 'number') {
+          console.log(`[calculateLatencyStats] Adding total latency value: ${metrics.totalLatency}`)
+          totalValues.push(metrics.totalLatency)
         }
       }
     })
