@@ -52,7 +52,7 @@ export async function calculateLatencyStats(
     // Fetch all metrics events for this call
     const { data: metricsEvents, error: metricsError } = await supabase
       .from('agent_events')
-      .select('data')
+      .select('data, event_type')
       .eq('call_id', callId)
       .in('event_type', ['metrics_collected', 'total_latency'])
 
@@ -77,15 +77,29 @@ export async function calculateLatencyStats(
     metricsEvents.forEach((event) => {
       const data = event.data as Record<string, unknown>
       const metricType = data.metricType as string | undefined
+      console.log(`[calculateLatencyStats] event type: ${event.event_type}`)
 
-      if (metricType === 'eou' && typeof data.endOfUtteranceDelay === 'number') {
-        eouValues.push(data.endOfUtteranceDelay)
-      } else if (metricType === 'llm' && typeof data.ttft === 'number') {
-        llmValues.push(data.ttft)
-      } else if (metricType === 'tts' && typeof data.ttfb === 'number') {
-        ttsValues.push(data.ttfb)
-      } else if (metricType === 'total_latency' && typeof data.totalLatency === 'number') {
-        totalValues.push(data.totalLatency)
+      if (event.event_type === 'metrics_collected') {
+        // temporary if to print relevant data
+        if (metricType === 'eou' || metricType === 'llm' || metricType === 'tts') {
+          console.log(`[calculateLatencyStats] event data: ${JSON.stringify(data, null, 2)}`)
+        }
+        if (metricType === 'eou' && typeof data.endOfUtteranceDelay === 'number') {
+          eouValues.push(data.endOfUtteranceDelay)
+        } else if (metricType === 'llm' && typeof data.ttft === 'number') {
+          llmValues.push(data.ttft)
+        } else if (metricType === 'tts' && typeof data.ttfb === 'number') {
+          ttsValues.push(data.ttfb)
+        }
+      }
+      if (event.event_type === 'total_latency') {
+        // temporary if to print relevant data
+        if (metricType === 'total_latency') {
+          console.log(`[calculateLatencyStats] event data: ${JSON.stringify(data, null, 2)}`)
+        }
+        if (metricType === 'total_latency' && typeof data.totalLatency === 'number') {
+          totalValues.push(data.totalLatency)
+        }
       }
     })
 
