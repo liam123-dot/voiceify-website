@@ -131,6 +131,23 @@ export interface SpeechCreatedEventData {
   }>;
 }
 
+export interface LatencyStats {
+  min: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  avg: number;
+  max: number;
+  count: number;
+}
+
+export interface CallLatencyStatsEventData {
+  eou: LatencyStats | null;
+  llm: LatencyStats | null;
+  tts: LatencyStats | null;
+  total: LatencyStats | null;
+}
+
 // ============================================
 // Structured Metrics Types
 // ============================================
@@ -172,6 +189,14 @@ export interface TTSMetrics {
   streamed: boolean;
 }
 
+export interface VADMetrics {
+  metricType: 'vad';
+  idleTime: number;
+  inferenceCount: number;
+  inferenceDurationTotal: number;
+  label?: string | null;
+}
+
 export interface TotalLatencyMetrics {
   metricType: 'total_latency';
   speechId: string;
@@ -187,7 +212,7 @@ export interface UnknownMetrics {
   [key: string]: any;
 }
 
-export type MetricsData = EOUMetrics | STTMetrics | LLMMetrics | TTSMetrics | TotalLatencyMetrics | UnknownMetrics;
+export type MetricsData = EOUMetrics | STTMetrics | LLMMetrics | TTSMetrics | VADMetrics | TotalLatencyMetrics | UnknownMetrics;
 
 export interface MetricsCollectedEventData {
   metricsType?: string; // Legacy field
@@ -295,7 +320,8 @@ export type CallEventType =
   | 'knowledge_retrieved'
   // Summary events
   | 'session_complete'
-  | 'transcript';
+  | 'transcript'
+  | 'call_latency_stats';
 
 export type CallEventData =
   | CallIncomingEventData

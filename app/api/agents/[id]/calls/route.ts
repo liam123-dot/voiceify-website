@@ -162,6 +162,90 @@ export async function POST(
         .eq('id', callRecord.id);
 
       console.log(`✅ Call marked as completed (duration: ${updates.duration_seconds}s)`);
+
+      // Calculate and store latency statistics
+      try {
+        console.log('📊 Calculating latency statistics...');
+        
+        // Fetch all metrics events for this call
+        const { data: metricsEvents, error: metricsError } = await supabase
+          .from('agent_events')
+          .select('data')
+          .eq('call_id', callRecord.id)
+          .in('event_type', ['metrics_collected', 'total_latency']);
+
+        if (metricsError) {
+          console.error('Error fetching metrics events:', metricsError);
+        } else if (metricsEvents && metricsEvents.length > 0) {
+          // Helper function to calculate percentile
+          const calculatePercentile = (values: number[], percentile: number): number => {
+            if (values.length === 0) return 0;
+            const sorted = [...values].sort((a, b) => a - b);
+            const index = Math.ceil((percentile / 100) * sorted.length) - 1;
+            return sorted[Math.max(0, index)];
+          };
+
+          // Helper function to calculate stats from array
+          const calculateStats = (values: number[]) => {
+            if (values.length === 0) return null;
+            const sum = values.reduce((a, b) => a + b, 0);
+            return {
+              min: Math.min(...values),
+              p50: calculatePercentile(values, 50),
+              p95: calculatePercentile(values, 95),
+              p99: calculatePercentile(values, 99),
+              avg: sum / values.length,
+              max: Math.max(...values),
+              count: values.length,
+            };
+          };
+
+          // Collect latency values by type
+          const eouValues: number[] = [];
+          const llmValues: number[] = [];
+          const ttsValues: number[] = [];
+          const totalValues: number[] = [];
+
+          metricsEvents.forEach((event) => {
+            const data = event.data as Record<string, unknown>;
+            const metricType = data.metricType as string | undefined;
+            
+            if (metricType === 'eou' && typeof data.endOfUtteranceDelay === 'number') {
+              eouValues.push(data.endOfUtteranceDelay);
+            } else if (metricType === 'llm' && typeof data.ttft === 'number') {
+              llmValues.push(data.ttft);
+            } else if (metricType === 'tts' && typeof data.ttfb === 'number') {
+              ttsValues.push(data.ttfb);
+            } else if (metricType === 'total_latency' && typeof data.totalLatency === 'number') {
+              totalValues.push(data.totalLatency);
+            }
+          });
+
+          // Calculate statistics for each metric type
+          const latencyStats = {
+            eou: calculateStats(eouValues),
+            llm: calculateStats(llmValues),
+            tts: calculateStats(ttsValues),
+            total: calculateStats(totalValues),
+          };
+
+          console.log(`📊 Latency stats: EOU=${eouValues.length}, LLM=${llmValues.length}, TTS=${ttsValues.length}, Total=${totalValues.length}`);
+
+          // Only save if we have at least some data
+          if (eouValues.length > 0 || llmValues.length > 0 || ttsValues.length > 0 || totalValues.length > 0) {
+            // Save latency statistics as a new event
+            await supabase.from('agent_events').insert({
+              call_id: callRecord.id,
+              event_type: 'call_latency_stats',
+              data: latencyStats,
+            });
+
+            console.log('✅ Latency statistics saved');
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating latency statistics:', error);
+      }
     }
 
     // Handle transcript event - store the full transcript and mark call as completed

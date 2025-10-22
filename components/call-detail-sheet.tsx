@@ -12,7 +12,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import type { Call, CallStatus, CallEventType } from '@/types/call-events'
+import type { Call, CallStatus, CallEventType, LatencyStats, CallLatencyStatsEventData } from '@/types/call-events'
 import {
   PhoneIcon,
   MessageSquareIcon,
@@ -28,7 +28,8 @@ import {
   HeadphonesIcon,
   BookOpenIcon,
   FileTextIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  TimerIcon
 } from 'lucide-react'
 import { calculateCallCost, formatCurrency, extractConfigDetails, REALTIME_MODEL_PRICING } from '@/lib/pricing'
 import { getLLMModel, getSTTModel, getTTSModel } from '@/lib/models'
@@ -50,6 +51,7 @@ interface CallDetailSheetProps {
   showEvents?: boolean
   showCosts?: boolean
   showTimeline?: boolean
+  showLatency?: boolean
 }
 
 function formatDuration(seconds: number | null): string {
@@ -184,16 +186,18 @@ function getEventLabel(eventType: CallEventType): string {
   }
 }
 
-export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = false, showCosts = false, showTimeline = false }: CallDetailSheetProps) {
+export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = false, showCosts = false, showTimeline = false, showLatency = false }: CallDetailSheetProps) {
   const [events, setEvents] = useState<AgentEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null)
   const [loadingRecording, setLoadingRecording] = useState(false)
+  const [latencyStats, setLatencyStats] = useState<CallLatencyStatsEventData | null>(null)
 
   // Fetch agent events when call changes
   useEffect(() => {
     if (!call?.id) {
       setEvents([])
+      setLatencyStats(null)
       return
     }
 
@@ -203,11 +207,19 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
         const response = await fetch(`/api/${slug}/calls/${call.id}/events`)
         if (response.ok) {
           const data = await response.json()
-          setEvents(data.events || [])
+          const allEvents = data.events || []
+          setEvents(allEvents)
+          
+          // Extract latency stats if available
+          const latencyEvent = allEvents.find((e: AgentEvent) => e.event_type === 'call_latency_stats')
+          if (latencyEvent) {
+            setLatencyStats(latencyEvent.data as CallLatencyStatsEventData)
+          }
         }
       } catch (error) {
         console.error('Failed to fetch events:', error)
         setEvents([])
+        setLatencyStats(null)
       } finally {
         setLoadingEvents(false)
       }
@@ -405,11 +417,12 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
         <Tabs defaultValue="overview" className="mt-6">
           <TabsList className={`w-full grid ${
             (() => {
-              const count = [true, showEvents, showTimeline, showCosts, true].filter(Boolean).length
+              const count = [true, showEvents, showTimeline, showLatency, showCosts, true].filter(Boolean).length
               return count === 2 ? 'grid-cols-2' :
                      count === 3 ? 'grid-cols-3' :
                      count === 4 ? 'grid-cols-4' :
-                     'grid-cols-5'
+                     count === 5 ? 'grid-cols-5' :
+                     'grid-cols-6'
             })()
           }`}>
             <TabsTrigger value="overview">
@@ -426,6 +439,12 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
               <TabsTrigger value="timeline">
                 <BarChart3Icon className="size-4" />
                 <span className="ml-1 hidden sm:inline">Timeline</span>
+              </TabsTrigger>
+            )}
+            {showLatency && (
+              <TabsTrigger value="latency">
+                <TimerIcon className="size-4" />
+                <span className="ml-1 hidden sm:inline">Latency</span>
               </TabsTrigger>
             )}
             {showCosts && (
@@ -795,6 +814,153 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
               </Card>
             )}
           </TabsContent>
+          )}
+
+          {/* Latency Statistics Tab */}
+          {showLatency && (
+            <TabsContent value="latency" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TimerIcon className="size-4" />
+                    Latency Statistics
+                  </CardTitle>
+                  <CardDescription>
+                    Response time breakdown per conversation turn
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingEvents ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Loading statistics...
+                    </div>
+                  ) : latencyStats && (latencyStats.eou || latencyStats.llm || latencyStats.tts || latencyStats.total) ? (
+                    <div className="space-y-6">
+                      {/* Helper function to get color based on value */}
+                      {(() => {
+                        const getLatencyColor = (value: number, thresholds: { good: number; warn: number }) => {
+                          if (value <= thresholds.good) return 'text-green-600';
+                          if (value <= thresholds.warn) return 'text-yellow-600';
+                          return 'text-red-600';
+                        };
+
+                        const formatLatency = (seconds: number) => {
+                          if (seconds < 1) return `${(seconds * 1000).toFixed(0)}ms`;
+                          return `${seconds.toFixed(3)}s`;
+                        };
+
+                        const renderStatsRow = (
+                          label: string,
+                          stats: LatencyStats | null,
+                          thresholds: { good: number; warn: number }
+                        ) => {
+                          if (!stats) return null;
+
+                          return (
+                            <div key={label} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">{label}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {stats.count} {stats.count === 1 ? 'sample' : 'samples'}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">Min</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.min, thresholds)}`}>
+                                    {formatLatency(stats.min)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">p50</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.p50, thresholds)}`}>
+                                    {formatLatency(stats.p50)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">p95</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.p95, thresholds)}`}>
+                                    {formatLatency(stats.p95)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">p99</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.p99, thresholds)}`}>
+                                    {formatLatency(stats.p99)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">Avg</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.avg, thresholds)}`}>
+                                    {formatLatency(stats.avg)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">Max</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.max, thresholds)}`}>
+                                    {formatLatency(stats.max)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        };
+
+                        return (
+                          <>
+                            {latencyStats.total && (
+                              <div className="p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
+                                {renderStatsRow('Total Latency', latencyStats.total, { good: 1.0, warn: 2.0 })}
+                                <p className="text-xs text-muted-foreground mt-3">
+                                  Time from user stops speaking to agent starts responding
+                                </p>
+                              </div>
+                            )}
+                            
+                            <div className="space-y-4 pt-4 border-t">
+                              <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                                Component Breakdown
+                              </div>
+                              
+                              {latencyStats.eou && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  {renderStatsRow('End-of-Utterance (EOU)', latencyStats.eou, { good: 0.3, warn: 0.6 })}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Turn detection + transcription delay
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {latencyStats.llm && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  {renderStatsRow('LLM Time-to-First-Token', latencyStats.llm, { good: 0.4, warn: 0.8 })}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Time for LLM to start generating response
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {latencyStats.tts && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  {renderStatsRow('TTS Time-to-First-Byte', latencyStats.tts, { good: 0.2, warn: 0.4 })}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Time for TTS to start generating audio
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No latency statistics available for this call
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           )}
 
           {/* Cost & Usage Tab */}
