@@ -83,9 +83,13 @@ export async function calculateLatencyStats(
       // The actual metrics are nested inside event.data.data
       const metrics = eventData.data as Record<string, unknown>
       
-      console.log(`[calculateLatencyStats] event data: ${JSON.stringify(eventData, null, 2)}`)
       const metricType = metrics.metricType as string | undefined
-      console.log(`[calculateLatencyStats] event type: ${event.event_type}, metricType: ${metricType}`)
+      
+      // Skip logging for VAD metrics (not relevant for latency calculations)
+      if (metricType !== 'vad') {
+        console.log(`[calculateLatencyStats] event data: ${JSON.stringify(eventData, null, 2)}`)
+        console.log(`[calculateLatencyStats] event type: ${event.event_type}, metricType: ${metricType}`)
+      }
 
       if (event.event_type === 'metrics_collected') {
         if (metricType === 'eou' && typeof metrics.endOfUtteranceDelay === 'number') {
