@@ -165,22 +165,11 @@ export async function POST(
 
       // Calculate and store latency statistics
       try {
-        console.log('📊 Calculating latency statistics...');
+        console.log('📊 Calculating and saving latency statistics...');
         
         // Import and use the shared calculation function
         const { calculateLatencyStats } = await import('@/app/api/[slug]/calls/[callId]/latency-stats/route');
-        const latencyStats = await calculateLatencyStats(callRecord.id, supabase);
-
-        if (latencyStats && (latencyStats.eou || latencyStats.llm || latencyStats.tts || latencyStats.total)) {
-          // Save latency statistics as a new event
-          await supabase.from('agent_events').insert({
-            call_id: callRecord.id,
-            event_type: 'call_latency_stats',
-            data: latencyStats,
-          });
-
-          console.log('✅ Latency statistics saved');
-        }
+        await calculateLatencyStats(callRecord.id, supabase, { saveToDatabase: true });
       } catch (error) {
         console.error('Error calculating latency statistics:', error);
       }

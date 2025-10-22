@@ -44,10 +44,12 @@ function calculateStats(values: number[]): LatencyStats | null {
 
 export async function calculateLatencyStats(
   callId: string,
-  supabase: Awaited<ReturnType<typeof createClient>>
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  options?: { saveToDatabase?: boolean }
 ): Promise<CallLatencyStatsData | null> {
   try {
     console.log(`[calculateLatencyStats] Starting latency stats calculation for call: ${callId}`)
+    console.log(`[calculateLatencyStats] Options:`, options)
     
     // Fetch all metrics events for this call
     const { data: metricsEvents, error: metricsError } = await supabase
@@ -114,6 +116,24 @@ export async function calculateLatencyStats(
     }
 
     console.log('[calculateLatencyStats] Calculated stats:', JSON.stringify(stats, null, 2))
+    
+    // Save to database if requested
+    if (options?.saveToDatabase && (stats.eou || stats.llm || stats.tts || stats.total)) {
+      console.log('[calculateLatencyStats] Saving stats to database...')
+      const { error: saveError } = await supabase
+        .from('agent_events')
+        .insert({
+          call_id: callId,
+          event_type: 'call_latency_stats',
+          data: stats,
+        })
+      
+      if (saveError) {
+        console.error('[calculateLatencyStats] Error saving stats to database:', saveError)
+      } else {
+        console.log('[calculateLatencyStats] ✅ Latency statistics saved to agent_events')
+      }
+    }
     
     return stats
   } catch (error) {
