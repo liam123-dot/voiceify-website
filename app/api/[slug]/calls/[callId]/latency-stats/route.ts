@@ -76,6 +76,7 @@ export async function calculateLatencyStats(
 
     metricsEvents.forEach((event) => {
       const data = event.data as Record<string, unknown>
+      console.log(`[calculateLatencyStats] event data: ${JSON.stringify(data, null, 2)}`)
       const metricType = data.metricType as string | undefined
       console.log(`[calculateLatencyStats] event type: ${event.event_type}`)
 
