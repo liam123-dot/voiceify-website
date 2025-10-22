@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface Tool {
   id: string
@@ -63,6 +64,7 @@ interface AgentsListProps {
 }
 
 export function AgentsList({ slug }: AgentsListProps) {
+  const router = useRouter()
   const [agents, setAgents] = useState<Agent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -227,112 +229,113 @@ export function AgentsList({ slug }: AgentsListProps) {
             </TableHeader>
             <TableBody>
               {agents.map((agent) => (
-                <Link 
+                <TableRow 
                   key={agent.id}
-                  href={`/${slug}/agents/${agent.id}`} 
-                  prefetch
-                  className="block"
+                  className="hover:bg-muted/30 cursor-pointer group"
+                  onClick={() => router.push(`/${slug}/agents/${agent.id}`)}
                 >
-                  <TableRow 
-                    className="hover:bg-muted/30 cursor-pointer group"
-                  >
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center text-muted-foreground">
-                        <IconRobot className="h-4 w-4" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium text-sm">{agent.name}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {agent.tools.length === 0 ? (
-                          <span className="text-sm text-muted-foreground opacity-50">
-                            No tools
-                          </span>
-                        ) : agent.tools.length <= 2 ? (
-                          agent.tools.map((tool) => (
-                            <Badge
-                              key={tool.id}
-                              variant="secondary"
-                              className="text-xs"
-                            >
-                              {tool.name}
-                            </Badge>
-                          ))
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">
-                            {agent.tools.length} tools
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center text-muted-foreground">
+                      <IconRobot className="h-4 w-4" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Link 
+                      href={`/${slug}/agents/${agent.id}`} 
+                      prefetch
+                      className="font-medium text-sm"
+                    >
+                      {agent.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {agent.tools.length === 0 ? (
+                        <span className="text-sm text-muted-foreground opacity-50">
+                          No tools
+                        </span>
+                      ) : agent.tools.length <= 2 ? (
+                        agent.tools.map((tool) => (
+                          <Badge
+                            key={tool.id}
+                            variant="secondary"
+                            className="text-xs"
+                          >
+                            {tool.name}
                           </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {agent.knowledge_bases.length === 0 ? (
-                          <span className="text-sm text-muted-foreground opacity-50">
-                            No KBs
-                          </span>
-                        ) : agent.knowledge_bases.length <= 2 ? (
-                          agent.knowledge_bases.map((kb) => (
-                            <Badge
-                              key={kb.id}
-                              variant="secondary"
-                              className="text-xs"
-                            >
-                              {kb.name}
-                            </Badge>
-                          ))
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">
-                            {agent.knowledge_bases.length} KBs
+                        ))
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">
+                          {agent.tools.length} tools
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {agent.knowledge_bases.length === 0 ? (
+                        <span className="text-sm text-muted-foreground opacity-50">
+                          No KBs
+                        </span>
+                      ) : agent.knowledge_bases.length <= 2 ? (
+                        agent.knowledge_bases.map((kb) => (
+                          <Badge
+                            key={kb.id}
+                            variant="secondary"
+                            className="text-xs"
+                          >
+                            {kb.name}
                           </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {agent.phone_numbers.length === 0 ? (
-                          <span className="text-sm text-muted-foreground opacity-50">
-                            No numbers
-                          </span>
-                        ) : agent.phone_numbers.length <= 2 ? (
-                          agent.phone_numbers.map((pn) => (
-                            <Badge
-                              key={pn.id}
-                              variant="secondary"
-                              className="text-xs"
-                            >
-                              {pn.number}
-                            </Badge>
-                          ))
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">
-                            {agent.phone_numbers.length} numbers
+                        ))
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">
+                          {agent.knowledge_bases.length} KBs
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {agent.phone_numbers.length === 0 ? (
+                        <span className="text-sm text-muted-foreground opacity-50">
+                          No numbers
+                        </span>
+                      ) : agent.phone_numbers.length <= 2 ? (
+                        agent.phone_numbers.map((pn) => (
+                          <Badge
+                            key={pn.id}
+                            variant="secondary"
+                            className="text-xs"
+                          >
+                            {pn.number}
                           </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(agent.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        disabled={isDeleting}
-                        onClick={(e) => handleDeleteClick(agent, e)}
-                      >
-                        {isDeleting && agentToDelete?.id === agent.id ? (
-                          <IconLoader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <IconTrash className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                </Link>
+                        ))
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">
+                          {agent.phone_numbers.length} numbers
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {new Date(agent.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      disabled={isDeleting}
+                      onClick={(e) => handleDeleteClick(agent, e)}
+                    >
+                      {isDeleting && agentToDelete?.id === agent.id ? (
+                        <IconLoader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <IconTrash className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
             </TableBody>
           </Table>
