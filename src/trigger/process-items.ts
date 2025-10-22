@@ -8,17 +8,39 @@ import axios from "axios";
 /**
  * ╔═══════════════════════════════════════════════════════════════════════╗
  * ║           KNOWLEDGE BASE ITEM PROCESSING WITH SMART RETRIES           ║
+ * ║                    & CONTEXTUAL RETRIEVAL (ANTHROPIC)                 ║
  * ╚═══════════════════════════════════════════════════════════════════════╝
  * 
  * This task processes knowledge base items (URLs, text, files) and generates
  * embeddings with intelligent retry logic for rate limiting and transient errors.
+ * 
+ * CONTEXTUAL RETRIEVAL:
+ * ====================
+ * Implements Anthropic's Contextual Retrieval technique to improve search accuracy:
+ * https://www.anthropic.com/engineering/contextual-retrieval
+ * 
+ * Before embedding each chunk, we use Claude (via OpenRouter) to generate a short
+ * contextual summary that situates the chunk within the whole document. This context
+ * is prepended to the chunk before embedding.
+ * 
+ * Benefits (per Anthropic's research):
+ *   • 49% reduction in failed retrievals (embeddings + BM25)
+ *   • 67% reduction with reranking
+ *   • Chunks maintain context even when split from larger documents
+ * 
+ * Example:
+ *   Original: "The company's revenue grew by 3% over the previous quarter."
+ *   Contextualized: "This chunk is from an SEC filing on ACME corp's performance 
+ *                    in Q2 2023; the previous quarter's revenue was $314 million.
+ *                    The company's revenue grew by 3% over the previous quarter."
  * 
  * RETRY STRATEGY:
  * ===============
  * 
  * 1. API-Level Retries (5 attempts each):
  *    • Firecrawl API (URL scraping)
- *    • Embedding Provider API (OpenAI, etc.)
+ *    • OpenRouter API (contextual generation)
+ *    • Embedding Provider API (Voyage AI)
  *    
  *    Rate Limits (429):
  *      - Respects Retry-After header when present

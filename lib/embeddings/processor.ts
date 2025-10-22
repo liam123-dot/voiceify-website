@@ -1,10 +1,18 @@
-// Embedding and Chunking Utilities
+// Embedding and Chunking Utilities with Contextual Retrieval
 
 import { encode } from 'gpt-tokenizer'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import { generateText } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
 // Commented out - switched to Voyage AI embeddings
 // import OpenAI from 'openai';
 import type { DocumentChunk, EmbeddingResult } from '@/types/knowledge-base';
+
+// Initialize OpenRouter client
+const openrouter = createOpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: 'https://openrouter.ai/api/v1',
+});
 
 // Commented out - switched to Voyage AI embeddings
 // // Initialize OpenAI client
@@ -66,6 +74,43 @@ export async function chunkText(
   });
 
   return chunks;
+}
+
+/**
+ * Generate contextual information for a chunk using Claude via OpenRouter
+ * This implements Contextual Retrieval as described in Anthropic's research:
+ * https://www.anthropic.com/engineering/contextual-retrieval
+ * 
+ * @param wholeDocument - The entire document text
+ * @param chunkContent - The specific chunk to contextualize
+ * @returns Contextual information to prepend to the chunk
+ */
+async function generateChunkContext(
+  wholeDocument: string,
+  chunkContent: string
+): Promise<string> {
+  try {
+    const { text } = await generateText({
+      model: openrouter('anthropic/claude-3.5-haiku'),
+      prompt: `<document>
+${wholeDocument}
+</document>
+
+Here is the chunk we want to situate within the whole document:
+<chunk>
+${chunkContent}
+</chunk>
+
+Please give a short succinct context to situate this chunk within the overall document for the purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else. Keep it under 100 tokens.`,
+      temperature: 0,
+    });
+
+    return text.trim();
+  } catch (error) {
+    console.error('[generateChunkContext] Error generating context:', error);
+    // If context generation fails, return empty string to avoid blocking the pipeline
+    return '';
+  }
 }
 
 /**
@@ -166,7 +211,15 @@ export async function generateEmbedding(
 // }
 
 /**
- * Process text: chunk and generate embeddings
+ * Process text: chunk, add context, and generate embeddings
+ * 
+ * Implements Contextual Retrieval as described by Anthropic:
+ * https://www.anthropic.com/engineering/contextual-retrieval
+ * 
+ * For each chunk, we generate contextual information using an LLM that explains
+ * what the chunk is about in the context of the whole document. This context is
+ * prepended to the chunk before embedding, which significantly improves retrieval
+ * accuracy (49% reduction in failed retrievals according to Anthropic's research).
  * 
  * Note: This function returns all chunks with embeddings at once.
  * For memory efficiency with large datasets, the caller should
@@ -175,12 +228,14 @@ export async function generateEmbedding(
  * @param text - The text to process
  * @param chunkSize - Target size in tokens per chunk
  * @param overlap - Number of overlapping tokens between chunks
+ * @param useContextualRetrieval - Whether to add context to chunks (default: true)
  * @returns Array of chunks with embeddings
  */
 export async function processTextWithEmbeddings(
   text: string,
   chunkSize: number = 512,
-  overlap: number = 50
+  overlap: number = 50,
+  useContextualRetrieval: boolean = true
 ): Promise<Array<DocumentChunk & { embedding: number[] }>> {
   // Chunk the text using LangChain's reliable splitter
   console.log('[processTextWithEmbeddings] Chunking text:', text.length, 'characters');
@@ -192,13 +247,32 @@ export async function processTextWithEmbeddings(
   const chunksWithEmbeddings: Array<DocumentChunk & { embedding: number[] }> = [];
   console.log('[processTextWithEmbeddings] Generating embeddings for', chunks.length, 'chunks');
   
+  if (useContextualRetrieval) {
+    console.log('[processTextWithEmbeddings] Using Contextual Retrieval for improved accuracy');
+  }
+  
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     try {
       console.log(`[processTextWithEmbeddings] Processing chunk ${i + 1}/${chunks.length} (${chunk.content.length} chars)`);
-      const result = await generateEmbedding(chunk.content);
+      
+      let contentToEmbed = chunk.content;
+      
+      // Apply Contextual Retrieval: generate context and prepend to chunk
+      if (useContextualRetrieval) {
+        const context = await generateChunkContext(text, chunk.content);
+        if (context) {
+          // Prepend context to chunk content before embedding
+          contentToEmbed = `${context}\n\n${chunk.content}`;
+          console.log(`[processTextWithEmbeddings] Added context (${context.length} chars) to chunk ${i + 1}`);
+        }
+      }
+      
+      // Generate embedding for the contextualized chunk
+      const result = await generateEmbedding(contentToEmbed);
       chunksWithEmbeddings.push({
         ...chunk,
+        content: contentToEmbed, // Store the contextualized version
         embedding: result.embedding,
         tokenCount: result.tokenCount, // Use actual token count from embedding API
       });

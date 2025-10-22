@@ -36,9 +36,10 @@ interface CallsContainerProps {
   showEvents?: boolean
   showCosts?: boolean
   showTimeline?: boolean
+  showLatency?: boolean
 }
 
-export function CallsContainer({ slug, showEvents = false, showCosts = false, showTimeline = false }: CallsContainerProps) {
+export function CallsContainer({ slug, showEvents = false, showCosts = false, showTimeline = false, showLatency = false }: CallsContainerProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [agentId, setAgentId] = useState<string>('all')
