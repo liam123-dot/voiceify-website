@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { ChartAreaInteractive } from '@/components/chart-area-interactive'
 import { ChartBarSegmented } from '@/components/chart-bar-segmented'
+import { ChartAreaDuration } from '@/components/chart-area-duration'
+import { ChartBarDurationSegmented } from '@/components/chart-bar-duration-segmented'
 import { ChartLatencyPercentiles } from '@/components/chart-latency-percentiles'
 import { SectionCards } from '@/components/section-cards'
 import { Label } from '@/components/ui/label'
@@ -201,6 +203,25 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
           />
         ) : (
           <ChartAreaInteractive
+            calls={transformedCalls as Call[]}
+            timeRange={timeRange}
+            groupBy={groupBy}
+            onTimeRangeChange={setTimeRange}
+            onGroupByChange={setGroupBy}
+          />
+        )}
+
+        {/* Call Duration Charts */}
+        {isSegmented && selectedSlug === 'all' ? (
+          <ChartBarDurationSegmented
+            calls={calls}
+            timeRange={timeRange}
+            groupBy={groupBy}
+            onTimeRangeChange={setTimeRange}
+            onGroupByChange={setGroupBy}
+          />
+        ) : (
+          <ChartAreaDuration
             calls={transformedCalls as Call[]}
             timeRange={timeRange}
             groupBy={groupBy}
