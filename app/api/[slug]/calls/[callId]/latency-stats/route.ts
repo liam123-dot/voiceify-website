@@ -113,14 +113,32 @@ export async function calculateLatencyStats(
       const speechId = metrics.speechId as string | undefined
       
       if (event.event_type === 'metrics_collected') {
-        if (metricType === 'eou' && typeof metrics.endOfUtteranceDelay === 'number') {
-          console.log(`[calculateLatencyStats] Adding EOU value: ${metrics.endOfUtteranceDelay}`)
-          eouValues.push(metrics.endOfUtteranceDelay)
+        if (metricType === 'eou') {
+          // EOU metrics include three delay measurements - use the minimum as it's most accurate
+          const endOfUtteranceDelay = metrics.endOfUtteranceDelay as number | undefined
+          const transcriptionDelay = metrics.transcriptionDelay as number | undefined  
+          const onUserTurnCompletedDelay = metrics.onUserTurnCompletedDelay as number | undefined
           
-          // Track by speech ID
-          if (speechId) {
-            const existing = speechMetrics.get(speechId) || {}
-            speechMetrics.set(speechId, { ...existing, eou: metrics.endOfUtteranceDelay })
+          const delays = [endOfUtteranceDelay, transcriptionDelay, onUserTurnCompletedDelay].filter(
+            (d): d is number => typeof d === 'number'
+          )
+          
+          if (delays.length > 0) {
+            const eouDelay = Math.min(...delays)
+            console.log(
+              `[calculateLatencyStats] EOU delays - ` +
+              `EOU: ${endOfUtteranceDelay?.toFixed(3)}s, ` +
+              `Transcription: ${transcriptionDelay?.toFixed(3)}s, ` +
+              `TurnCompleted: ${onUserTurnCompletedDelay?.toFixed(3)}s, ` +
+              `Using minimum: ${eouDelay.toFixed(3)}s`
+            )
+            eouValues.push(eouDelay)
+            
+            // Track by speech ID
+            if (speechId) {
+              const existing = speechMetrics.get(speechId) || {}
+              speechMetrics.set(speechId, { ...existing, eou: eouDelay })
+            }
           }
         } else if (metricType === 'llm' && typeof metrics.ttft === 'number') {
           console.log(`[calculateLatencyStats] Adding LLM value: ${metrics.ttft}`)
