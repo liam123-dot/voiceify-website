@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getAuthSession } from '@/lib/auth'
 import { tasks } from '@trigger.dev/sdk/v3'
-import { createKnowledgeBaseItem, insertKnowledgeBaseItem } from '@/lib/knowledge-base/items'
+import { createKnowledgeBaseItem, insertKnowledgeBaseItem, checkUrlExists } from '@/lib/knowledge-base/items'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,6 +119,12 @@ export async function POST(
       const url = formData.get('url') as string
       if (!url) {
         return NextResponse.json({ error: 'URL is required for url type' }, { status: 400 })
+      }
+      
+      // Check if URL already exists in this knowledge base
+      const urlExists = await checkUrlExists(knowledgeBaseId, url)
+      if (urlExists) {
+        return NextResponse.json({ error: 'This URL already exists in the knowledge base' }, { status: 409 })
       }
     } else if (type === 'text') {
       const textContent = formData.get('text_content') as string

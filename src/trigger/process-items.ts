@@ -1,9 +1,53 @@
-import { logger, schemaTask } from "@trigger.dev/sdk/v3";
+import { logger, schemaTask, wait } from "@trigger.dev/sdk/v3";
 import z from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
 import { processTextWithEmbeddings } from "@/lib/embeddings/processor";
 import axios from "axios";
+
+/**
+ * ╔═══════════════════════════════════════════════════════════════════════╗
+ * ║           KNOWLEDGE BASE ITEM PROCESSING WITH SMART RETRIES           ║
+ * ╚═══════════════════════════════════════════════════════════════════════╝
+ * 
+ * This task processes knowledge base items (URLs, text, files) and generates
+ * embeddings with intelligent retry logic for rate limiting and transient errors.
+ * 
+ * RETRY STRATEGY:
+ * ===============
+ * 
+ * 1. API-Level Retries (5 attempts each):
+ *    • Firecrawl API (URL scraping)
+ *    • Embedding Provider API (OpenAI, etc.)
+ *    
+ *    Rate Limits (429):
+ *      - Respects Retry-After header when present
+ *      - Exponential backoff: 2^attempt × 2 seconds + jitter
+ *      - Max delay: 2 minutes per retry
+ *      - Example: 4s → 8s → 16s → 32s → 64s
+ *    
+ *    Other Errors:
+ *      - Shorter exponential backoff: 2^attempt seconds + jitter
+ *      - Max delay: 30 seconds
+ *      - Example: 2s → 4s → 8s → 16s → 30s
+ * 
+ * 2. Task-Level Retries (5 attempts):
+ *    • Handles catastrophic failures that bypass API retries
+ *    • Factor: 2.5x exponential backoff with jitter
+ *    • Range: 2s minimum → 60s maximum
+ *    • Example: 2s → 5s → 12s → 30s → 60s
+ * 
+ * TOTAL RESILIENCE:
+ *   Up to 5 API retries × 5 task retries = 25 total attempts possible
+ *   Most issues resolve within first 2-3 API retries
+ * 
+ * LOGGING:
+ *   ⏸️  = Rate limited (waiting)
+ *   ⚠️  = Transient error (retrying)
+ *   🔄 = Task-level retry
+ *   ✅ = Success
+ *   ❌ = Final failure
+ */
 
 /**
  * Create Supabase client for Trigger.dev tasks
@@ -23,6 +67,49 @@ function createSupabaseClient(): SupabaseClient {
       autoRefreshToken: false,
     },
   });
+}
+
+/**
+ * Check if an error is a rate limit error
+ */
+function isRateLimitError(error: unknown): boolean {
+  if (axios.isAxiosError(error)) {
+    return error.response?.status === 429;
+  }
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return message.includes("rate limit") || 
+           message.includes("too many requests") ||
+           message.includes("429");
+  }
+  return false;
+}
+
+/**
+ * Extract retry-after delay from error response
+ * Returns delay in seconds, defaults to exponential backoff if not present
+ */
+function getRetryAfterDelay(error: unknown, attemptNumber: number): number {
+  if (axios.isAxiosError(error)) {
+    const retryAfter = error.response?.headers['retry-after'];
+    if (retryAfter) {
+      // If it's a number, it's seconds
+      const parsed = parseInt(retryAfter, 10);
+      if (!isNaN(parsed)) {
+        return parsed;
+      }
+      // If it's a date, calculate the difference
+      const retryDate = new Date(retryAfter);
+      if (!isNaN(retryDate.getTime())) {
+        return Math.max(0, Math.ceil((retryDate.getTime() - Date.now()) / 1000));
+      }
+    }
+  }
+  
+  // Default exponential backoff: 2^attempt * 2 seconds with jitter
+  const baseDelay = Math.pow(2, attemptNumber) * 2;
+  const jitter = Math.random() * 2; // 0-2 seconds of jitter
+  return Math.min(baseDelay + jitter, 120); // Cap at 2 minutes
 }
 
 
@@ -77,8 +164,9 @@ async function updateItemStatus(
 
 /**
  * Fetch and extract text from a URL using Firecrawl API
+ * Handles rate limiting with exponential backoff
  */
-async function fetchTextFromURL(url: string): Promise<string> {
+async function fetchTextFromURL(url: string, maxRetries = 5): Promise<string> {
   logger.info("📥 Fetching content from URL", { url });
 
   const apiKey = process.env.FIRECRAWL_API_KEY;
@@ -86,32 +174,140 @@ async function fetchTextFromURL(url: string): Promise<string> {
     throw new Error("Firecrawl API key not configured");
   }
 
-  const response = await axios.post(
-    "https://api.firecrawl.dev/v2/scrape",
-    {
-      url: url,
-      formats: ["markdown"],
-    },
-    {
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+  let lastError: unknown;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.post(
+        "https://api.firecrawl.dev/v2/scrape",
+        {
+          url: url,
+          formats: ["markdown"],
+        },
+        {
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 60000, // 60 second timeout
+        }
+      );
+
+      if (!response.data.success || !response.data.data?.markdown) {
+        throw new Error("No content extracted from URL via Firecrawl");
+      }
+
+      const contentLength = response.data.data.markdown.length;
+      const sizeKB = (contentLength / 1024).toFixed(2);
+      logger.info("✅ Content fetched successfully", { 
+        sizeKB: `${sizeKB} KB`,
+        contentLength,
+        attempt: attempt > 0 ? attempt + 1 : undefined
+      });
+
+      return response.data.data.markdown;
+      
+    } catch (error) {
+      lastError = error;
+      
+      // Check if it's a rate limit error
+      if (isRateLimitError(error)) {
+        if (attempt < maxRetries) {
+          const delaySeconds = getRetryAfterDelay(error, attempt);
+          logger.warn("⏸️  Rate limited by Firecrawl API, waiting before retry", {
+            attempt: attempt + 1,
+            maxRetries: maxRetries + 1,
+            delaySeconds: delaySeconds.toFixed(1),
+            retryIn: `${delaySeconds.toFixed(1)}s`
+          });
+          
+          await wait.for({ seconds: delaySeconds });
+          continue;
+        }
+      }
+      
+      // For other errors, retry with shorter delay
+      if (attempt < maxRetries) {
+        const delaySeconds = Math.min(Math.pow(2, attempt) * 1 + Math.random(), 30);
+        logger.warn("⚠️  Error fetching from Firecrawl, retrying", {
+          error: error instanceof Error ? error.message : String(error),
+          attempt: attempt + 1,
+          maxRetries: maxRetries + 1,
+          delaySeconds: delaySeconds.toFixed(1)
+        });
+        
+        await wait.for({ seconds: delaySeconds });
+        continue;
+      }
+      
+      // Final attempt failed
+      throw error;
     }
-  );
-
-  if (!response.data.success || !response.data.data?.markdown) {
-    throw new Error("No content extracted from URL via Firecrawl");
   }
+  
+  throw lastError;
+}
 
-  const contentLength = response.data.data.markdown.length;
-  const sizeKB = (contentLength / 1024).toFixed(2);
-  logger.info("✅ Content fetched successfully", { 
-    sizeKB: `${sizeKB} KB`,
-    contentLength 
-  });
-
-  return response.data.data.markdown;
+/**
+ * Generate embeddings with retry logic for rate limits
+ */
+async function generateEmbeddingsWithRetry(
+  text: string,
+  chunkSize: number,
+  chunkOverlap: number,
+  maxRetries = 5
+): Promise<Array<DocumentChunk & { embedding: number[] }>> {
+  let lastError: unknown;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await processTextWithEmbeddings(text, chunkSize, chunkOverlap);
+      
+      if (attempt > 0) {
+        logger.info("✅ Embeddings generated successfully after retry", { attempt: attempt + 1 });
+      }
+      
+      return result;
+      
+    } catch (error) {
+      lastError = error;
+      
+      // Check if it's a rate limit error
+      if (isRateLimitError(error)) {
+        if (attempt < maxRetries) {
+          const delaySeconds = getRetryAfterDelay(error, attempt);
+          logger.warn("⏸️  Rate limited by embedding provider, waiting before retry", {
+            attempt: attempt + 1,
+            maxRetries: maxRetries + 1,
+            delaySeconds: delaySeconds.toFixed(1),
+            retryIn: `${delaySeconds.toFixed(1)}s`
+          });
+          
+          await wait.for({ seconds: delaySeconds });
+          continue;
+        }
+      }
+      
+      // For other errors, retry with shorter delay
+      if (attempt < maxRetries) {
+        const delaySeconds = Math.min(Math.pow(2, attempt) * 1 + Math.random(), 30);
+        logger.warn("⚠️  Error generating embeddings, retrying", {
+          error: error instanceof Error ? error.message : String(error),
+          attempt: attempt + 1,
+          maxRetries: maxRetries + 1,
+          delaySeconds: delaySeconds.toFixed(1)
+        });
+        
+        await wait.for({ seconds: delaySeconds });
+        continue;
+      }
+      
+      // Final attempt failed
+      throw error;
+    }
+  }
+  
+  throw lastError;
 }
 
 /**
@@ -196,13 +392,19 @@ async function storeDocumentChunks(
  * Strategy:
  * - Uses medium-1x machine (1 vCPU, 2GB RAM) - balanced for most content
  * - Batch processing (50 chunks at a time) minimizes memory spikes
- * - Retry configuration handles transient failures (API timeouts, network issues)
+ * - Smart retry configuration with exponential backoff for rate limits
+ * - Internal retries (5x) for API calls, task-level retries (5x) for hard failures
  * - Concurrency limited to avoid overwhelming APIs and rate limits
  * 
  * Memory efficiency:
  * - Chunks stored in batches of 50 instead of all at once
  * - Each batch is released from memory after storage
  * - For very large sites (1000+ chunks), this prevents OOM errors
+ * 
+ * Retry behavior:
+ * - Rate limits (429): Exponential backoff with jitter, respects Retry-After header
+ * - Transient errors: Shorter exponential backoff (2^attempt seconds)
+ * - Hard failures: Task-level retry with longer delays
  */
 export const processItem = schemaTask({
   id: "process-item",
@@ -211,11 +413,11 @@ export const processItem = schemaTask({
   }),
   machine: "medium-1x", // 1 vCPU, 2GB RAM - good balance of cost and capability
   retry: {
-    maxAttempts: 3,
-    factor: 2,
-    minTimeoutInMs: 1000,
-    maxTimeoutInMs: 10000,
-    randomize: true,
+    maxAttempts: 5, // Increased from 3 for better resilience
+    factor: 2.5, // More aggressive exponential backoff
+    minTimeoutInMs: 2000, // Start at 2 seconds
+    maxTimeoutInMs: 60000, // Up to 1 minute between retries
+    randomize: true, // Add jitter to prevent thundering herd
   },
   queue: {
     concurrencyLimit: 3, // Limit concurrent tasks to avoid API rate limits
@@ -253,9 +455,9 @@ export const processItem = schemaTask({
         characters: text.length 
       });
 
-      // Generate embeddings
-      logger.info("🧮 Generating embeddings...");
-      const chunksWithEmbeddings = await processTextWithEmbeddings(
+      // Generate embeddings with built-in retry logic
+      logger.info("🧮 Generating embeddings with retry support...");
+      const chunksWithEmbeddings = await generateEmbeddingsWithRetry(
         text,
         item.chunk_size || 512,
         item.chunk_overlap || 50
@@ -297,11 +499,14 @@ export const processItem = schemaTask({
 
     } catch (processingError) {
       const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
+      const isRateLimit = isRateLimitError(processingError);
       
-      logger.error("❌ Error processing item", { 
+      logger.error(isRateLimit ? "⏸️  Rate limit error processing item" : "❌ Error processing item", { 
         error: processingError instanceof Error ? processingError.message : String(processingError),
+        isRateLimitError: isRateLimit,
         durationSec: `${durationSec}s`,
         attempt: ctx.attempt.number,
+        maxAttempts: 5,
       });
       
       const errorMessage = processingError instanceof Error 
@@ -309,11 +514,20 @@ export const processItem = schemaTask({
         : "Unknown error during processing";
       
       // Only mark as failed if this is the last attempt
-      if (ctx.attempt.number >= 3) {
+      if (ctx.attempt.number >= 5) {
         await updateItemStatus(supabase, item.id, "failed", errorMessage);
-        logger.error("🔴 Max retries reached, marking item as failed");
+        logger.error("🔴 Max retries reached, marking item as failed", {
+          totalAttempts: ctx.attempt.number,
+          finalError: errorMessage,
+          wasRateLimited: isRateLimit
+        });
       } else {
-        logger.warn("⚠️  Retrying with larger machine...");
+        const nextAttempt = ctx.attempt.number + 1;
+        logger.warn(`🔄 Will retry (attempt ${nextAttempt}/5)`, {
+          nextAttempt,
+          isRateLimitRetry: isRateLimit,
+          errorType: isRateLimit ? "rate_limit" : "other"
+        });
       }
 
       throw processingError;

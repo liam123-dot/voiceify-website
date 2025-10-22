@@ -133,7 +133,10 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ 
+          url,
+          knowledgeBaseId // Pass knowledge base ID to filter existing URLs
+        }),
       })
 
       if (!response.ok) {
@@ -141,10 +144,31 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
         throw new Error(data.error || 'Failed to scrape website')
       }
 
-      const urls = await response.json()
-      setScrapedUrls(urls)
-      setSelectedUrls(urls) // Select all by default
-      toast.success(`Found ${urls.length} pages on the website`)
+      const data = await response.json()
+      
+      // Handle new response format with filtered URLs
+      const newUrls = data.urls || data // Backward compatible
+      const total = data.total || newUrls.length
+      const existing = data.existing || 0
+      const newCount = data.new || newUrls.length
+      
+      setScrapedUrls(newUrls)
+      setSelectedUrls(newUrls) // Select all by default
+      
+      // Show informative message about what was found
+      if (newCount === 0) {
+        toast.info(
+          `All ${total} page${total !== 1 ? 's' : ''} on this website are already in your knowledge base`,
+          { duration: 5000 }
+        )
+      } else if (existing > 0) {
+        toast.success(
+          `Found ${total} pages: ${newCount} new, ${existing} already in knowledge base (filtered out)`,
+          { duration: 5000 }
+        )
+      } else {
+        toast.success(`Found ${newCount} new page${newCount !== 1 ? 's' : ''} on the website`)
+      }
     } catch (error) {
       console.error('Error scraping website:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to scrape website')
@@ -194,10 +218,19 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
 
       const result = await response.json()
       
-      if (result.results.failed.length > 0) {
-        toast.warning(`Added ${result.results.successful.length} URLs, ${result.results.failed.length} failed`)
+      const successCount = result.results.successful.length
+      const skippedCount = result.results.skipped?.length || 0
+      const failedCount = result.results.failed.length
+      
+      if (failedCount > 0 || skippedCount > 0) {
+        const parts = []
+        if (successCount > 0) parts.push(`${successCount} added`)
+        if (skippedCount > 0) parts.push(`${skippedCount} skipped (already exist)`)
+        if (failedCount > 0) parts.push(`${failedCount} failed`)
+        
+        toast.warning(`URLs processed: ${parts.join(', ')}`)
       } else {
-        toast.success(`Successfully added ${result.results.successful.length} URLs`)
+        toast.success(`Successfully added ${successCount} URL${successCount !== 1 ? 's' : ''}`)
       }
       
       // Reset state
@@ -271,7 +304,7 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
                         </Button>
                       </div>
                       <FormDescription>
-                        Enter a single page URL or scrape entire website to select multiple pages
+                        Enter a single page URL or scrape entire website to select multiple pages. Duplicate URLs are automatically filtered out.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

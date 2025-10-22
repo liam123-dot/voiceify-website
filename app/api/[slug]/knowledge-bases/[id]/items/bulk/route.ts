@@ -2,7 +2,7 @@ import { getAuthSession } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { tasks } from "@trigger.dev/sdk/v3";
-import { createKnowledgeBaseItem, insertKnowledgeBaseItem } from "@/lib/knowledge-base/items";
+import { createKnowledgeBaseItem, insertKnowledgeBaseItem, checkUrlExists } from "@/lib/knowledge-base/items";
 
 // POST - Create multiple knowledge base items at once
 export async function POST(
@@ -62,9 +62,11 @@ export async function POST(
     const results: {
       successful: Record<string, unknown>[];
       failed: { url: string; error: string }[];
+      skipped: { url: string; reason: string }[];
     } = {
       successful: [],
       failed: [],
+      skipped: [],
     };
 
     // Process each item
@@ -76,6 +78,16 @@ export async function POST(
           results.failed.push({
             url: url || "unknown",
             error: "Name and URL are required",
+          });
+          continue;
+        }
+
+        // Check if URL already exists in this knowledge base
+        const urlExists = await checkUrlExists(knowledgeBaseId, url);
+        if (urlExists) {
+          results.skipped.push({
+            url,
+            reason: "URL already exists in knowledge base",
           });
           continue;
         }
@@ -126,7 +138,7 @@ export async function POST(
 
     return NextResponse.json(
       {
-        message: `Added ${results.successful.length} items, ${results.failed.length} failed`,
+        message: `Added ${results.successful.length} items, ${results.skipped.length} skipped (duplicates), ${results.failed.length} failed`,
         results,
       },
       { status: 201 }

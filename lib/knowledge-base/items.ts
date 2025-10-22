@@ -69,6 +69,32 @@ export async function createKnowledgeBaseItem(
 }
 
 /**
+ * Check if a URL already exists in a knowledge base
+ */
+export async function checkUrlExists(
+  knowledgeBaseId: string,
+  url: string
+): Promise<boolean> {
+  const supabase = await createServiceClient();
+
+  const { data, error } = await supabase
+    .from("knowledge_base_items")
+    .select("id")
+    .eq("knowledge_base_id", knowledgeBaseId)
+    .eq("url", url)
+    .eq("type", "url")
+    .is("deleted_at", null)
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    // PGRST116 is "not found" error, which is fine
+    console.error("Error checking URL existence:", error);
+  }
+
+  return !!data;
+}
+
+/**
  * Insert a knowledge base item into the database
  */
 export async function insertKnowledgeBaseItem(
