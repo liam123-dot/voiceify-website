@@ -4,6 +4,40 @@ import { getAuthSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+// Type definitions for agent relationships
+interface Tool {
+  id: string
+  label: string | null
+  name: string
+}
+
+interface AgentToolRecord {
+  tools: Tool
+}
+
+interface KnowledgeBase {
+  id: string
+  name: string
+}
+
+interface AgentKnowledgeBaseRecord {
+  knowledge_bases: KnowledgeBase
+}
+
+interface PhoneNumber {
+  id: string
+  phone_number: string
+}
+
+interface AgentRow {
+  id: string
+  name: string
+  created_at: string
+  agent_tools: AgentToolRecord[]
+  agent_knowledge_bases: AgentKnowledgeBaseRecord[]
+  phone_numbers: PhoneNumber[]
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -19,7 +53,7 @@ export async function GET(
     const supabase = await createServiceClient()
 
     // Fetch agents with related data
-    const { data: agents } = await supabase
+    const { data: agents } = (await supabase
       .from('agents')
       .select(`
         id, 
@@ -34,13 +68,15 @@ export async function GET(
         phone_numbers(id, phone_number)
       `)
       .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false })) as {
+        data: AgentRow[] | null
+      }
 
     // Transform the data to include details
-    const agentsWithDetails = (agents || []).map((agent: any) => {
+    const agentsWithDetails = (agents || []).map((agent: AgentRow) => {
       const tools = (agent.agent_tools || [])
-        .filter((at: any) => at.tools)
-        .map((at: any) => {
+        .filter((at: AgentToolRecord) => at.tools)
+        .map((at: AgentToolRecord) => {
           const tool = at.tools
           return {
             id: tool.id,
@@ -49,8 +85,8 @@ export async function GET(
         })
       
       const knowledgeBases = (agent.agent_knowledge_bases || [])
-        .filter((akb: any) => akb.knowledge_bases)
-        .map((akb: any) => {
+        .filter((akb: AgentKnowledgeBaseRecord) => akb.knowledge_bases)
+        .map((akb: AgentKnowledgeBaseRecord) => {
           const kb = akb.knowledge_bases
           return {
             id: kb.id,
@@ -60,7 +96,7 @@ export async function GET(
       
       const phoneNumbers = (agent.phone_numbers || [])
         .filter(Boolean)
-        .map((pn: any) => ({
+        .map((pn: PhoneNumber) => ({
           id: pn.id,
           number: pn.phone_number,
         }))
