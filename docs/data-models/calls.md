@@ -275,6 +275,7 @@ When a call completes, the system automatically calculates aggregate latency sta
 
 **When Generated:**
 - Automatically created when `session_complete` event is received
+- Can be calculated on-demand via API endpoint: `/api/[slug]/calls/[callId]/latency-stats`
 - Aggregates all metrics from `metrics_collected` and `total_latency` events
 - Provides min, p50, p95, p99, avg, max, and sample count for each metric type
 
@@ -283,6 +284,9 @@ When a call completes, the system automatically calculates aggregate latency sta
 - Identifying problematic calls
 - Understanding typical response times
 - Setting SLA thresholds
+
+**On-Demand Calculation:**
+If latency statistics were not automatically generated (e.g., for older calls), they can be calculated on demand by calling the endpoint. The statistics will be calculated from available metrics data but not saved to the database.
 
 ## Query Examples
 

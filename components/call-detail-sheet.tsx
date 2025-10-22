@@ -192,12 +192,15 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null)
   const [loadingRecording, setLoadingRecording] = useState(false)
   const [latencyStats, setLatencyStats] = useState<CallLatencyStatsEventData | null>(null)
+  const [loadingLatencyStats, setLoadingLatencyStats] = useState(false)
+  const [latencyStatsError, setLatencyStatsError] = useState<string | null>(null)
 
   // Fetch agent events when call changes
   useEffect(() => {
     if (!call?.id) {
       setEvents([])
       setLatencyStats(null)
+      setLatencyStatsError(null)
       return
     }
 
@@ -214,6 +217,10 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
           const latencyEvent = allEvents.find((e: AgentEvent) => e.event_type === 'call_latency_stats')
           if (latencyEvent) {
             setLatencyStats(latencyEvent.data as CallLatencyStatsEventData)
+            setLatencyStatsError(null)
+          } else {
+            // No stats found, will need to calculate them on demand
+            setLatencyStats(null)
           }
         }
       } catch (error) {
@@ -227,6 +234,30 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
 
     fetchEvents()
   }, [call?.id, slug])
+
+  // Function to fetch latency stats on demand
+  const fetchLatencyStats = async () => {
+    if (!call?.id || loadingLatencyStats) return
+
+    setLoadingLatencyStats(true)
+    setLatencyStatsError(null)
+    
+    try {
+      const response = await fetch(`/api/${slug}/calls/${call.id}/latency-stats`)
+      if (response.ok) {
+        const data = await response.json()
+        setLatencyStats(data.stats)
+      } else {
+        const errorData = await response.json()
+        setLatencyStatsError(errorData.error || 'Failed to calculate statistics')
+      }
+    } catch (error) {
+      console.error('Failed to fetch latency stats:', error)
+      setLatencyStatsError('Failed to calculate statistics')
+    } finally {
+      setLoadingLatencyStats(false)
+    }
+  }
 
   // Fetch call recording when call changes
   useEffect(() => {
@@ -830,9 +861,30 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {loadingEvents ? (
+                  {(loadingEvents || loadingLatencyStats) ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      Loading statistics...
+                      {loadingLatencyStats ? 'Calculating statistics...' : 'Loading statistics...'}
+                    </div>
+                  ) : latencyStatsError ? (
+                    <div className="text-center py-8">
+                      <div className="text-sm text-muted-foreground mb-4">
+                        {latencyStatsError}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Latency statistics require metrics data from the call. This data may not be available for very short calls or calls that ended prematurely.
+                      </p>
+                    </div>
+                  ) : !latencyStats ? (
+                    <div className="text-center py-8">
+                      <div className="text-sm text-muted-foreground mb-4">
+                        Statistics not yet calculated
+                      </div>
+                      <button
+                        onClick={fetchLatencyStats}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm"
+                      >
+                        Calculate Statistics
+                      </button>
                     </div>
                   ) : latencyStats && (latencyStats.eou || latencyStats.llm || latencyStats.tts || latencyStats.total) ? (
                     <div className="space-y-6">
