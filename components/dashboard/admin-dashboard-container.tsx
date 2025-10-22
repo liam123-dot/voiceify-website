@@ -12,6 +12,8 @@ import { SectionCards } from '@/components/section-cards'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Button } from '@/components/ui/button'
+import { RefreshCw } from 'lucide-react'
 import type { Call } from '@/types/call-events'
 
 interface CallWithOrg {
@@ -71,6 +73,7 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
   const [bucketSize, setBucketSize] = useState(searchParams.get('bucketSize') || '1h')
   const [lookbackPeriod, setLookbackPeriod] = useState(searchParams.get('lookbackPeriod') || '3d')
   const [selectedLatencyTab, setSelectedLatencyTab] = useState<'overall' | 'supabase' | 'embedding'>('overall')
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleBucketSizeChange = (size: string) => {
     setBucketSize(size)
@@ -87,7 +90,7 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
   }
 
   // Fetch analytics data with React Query
-  const { data, isLoading } = useQuery<AnalyticsResponse>({
+  const { data, isLoading, refetch: refetchAnalytics } = useQuery<AnalyticsResponse>({
     queryKey: ['admin-analytics', selectedSlug],
     queryFn: async () => {
       const url = selectedSlug === 'all' 
@@ -104,7 +107,7 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
   })
 
   // Fetch knowledge latency data
-  const { data: knowledgeData, isLoading: isKnowledgeLoading } = useQuery<KnowledgeLatencyResponse>({
+  const { data: knowledgeData, isLoading: isKnowledgeLoading, refetch: refetchKnowledgeLatency } = useQuery<KnowledgeLatencyResponse>({
     queryKey: ['admin-knowledge-latency', selectedSlug],
     queryFn: async () => {
       const url = selectedSlug === 'all' 
@@ -126,6 +129,15 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
       setIsSegmented(false)
     }
   }, [selectedSlug])
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      await Promise.all([refetchAnalytics(), refetchKnowledgeLatency()])
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   if (isLoading || isKnowledgeLoading) {
     return (
@@ -172,19 +184,33 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
             </Select>
           </div>
 
-          {/* Segmentation toggle - only show when "All Clients" is selected */}
-          {selectedSlug === 'all' && (
-            <div className="flex items-center gap-3">
-              <Switch
-                id="segment-toggle"
-                checked={isSegmented}
-                onCheckedChange={setIsSegmented}
-              />
-              <Label htmlFor="segment-toggle" className="text-sm font-medium cursor-pointer">
-                Segment by Client
-              </Label>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Segmentation toggle - only show when "All Clients" is selected */}
+            {selectedSlug === 'all' && (
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="segment-toggle"
+                  checked={isSegmented}
+                  onCheckedChange={setIsSegmented}
+                />
+                <Label htmlFor="segment-toggle" className="text-sm font-medium cursor-pointer">
+                  Segment by Client
+                </Label>
+              </div>
+            )}
+            
+            {/* Refresh Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
         </div>
       </div>
 

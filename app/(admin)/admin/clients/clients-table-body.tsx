@@ -1,6 +1,4 @@
-'use client'
-
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
   TableBody,
@@ -8,6 +6,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { IconBuilding } from "@tabler/icons-react"
+import { AccessButton } from "@/app/(admin)/admin/clients/access-button"
 
 interface Organization {
   id: string
@@ -22,8 +21,6 @@ interface ClientsTableBodyProps {
 }
 
 export function ClientsTableBody({ organizations, baseUrl }: ClientsTableBodyProps) {
-  const router = useRouter()
-
   return (
     <TableBody>
       {organizations
@@ -31,38 +28,40 @@ export function ClientsTableBody({ organizations, baseUrl }: ClientsTableBodyPro
         .map((org) => (
         <TableRow 
           key={org.id}
-          className="hover:bg-muted/30 cursor-pointer"
-          onClick={() => router.push(`/admin/clients/${org.slug}`)}
+          className="hover:bg-muted/30"
         >
           <TableCell className="text-center">
-            <div className="flex items-center justify-center text-muted-foreground">
+            <Link 
+              href={`/admin/clients/${org.slug}`}
+              className="flex items-center justify-center text-muted-foreground"
+              prefetch={true}
+            >
               <IconBuilding className="h-4 w-4" />
-            </div>
+            </Link>
           </TableCell>
           <TableCell>
-            <div className="flex items-center gap-2">
+            <Link 
+              href={`/admin/clients/${org.slug}`}
+              className="flex items-center gap-2"
+              prefetch={true}
+            >
               <span className="font-medium text-sm">{org.name}</span>
-            </div>
+            </Link>
           </TableCell>
           <TableCell className="text-sm text-muted-foreground">
-            {org.createdAt
-              ? new Date(org.createdAt).toLocaleDateString()
-              : '—'
-            }
+            <Link 
+              href={`/admin/clients/${org.slug}`}
+              className="block"
+              prefetch={true}
+            >
+              {org.createdAt
+                ? new Date(org.createdAt).toLocaleDateString()
+                : '—'
+              }
+            </Link>
           </TableCell>
           <TableCell className="text-right">
-            <Button 
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                if (baseUrl) {
-                  window.location.href = `${baseUrl}/${org.slug}`
-                }
-              }}
-            >
-              Access
-            </Button>
+            <AccessButton baseUrl={baseUrl} slug={org.slug} />
           </TableCell>
         </TableRow>
       ))}

@@ -132,7 +132,7 @@ export function ChartLatencyPercentiles({
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Knowledge Retrieval Latency Percentiles</CardTitle>
+              <CardTitle>Knowledge Latency</CardTitle>
               <CardDescription>
                 {LATENCY_LABELS[selectedTab]} - {BUCKET_SIZES[bucketSize]?.label} buckets over {LOOKBACK_PERIODS[lookbackPeriod]?.label.toLowerCase()}
               </CardDescription>
