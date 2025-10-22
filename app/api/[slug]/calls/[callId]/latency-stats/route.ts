@@ -16,6 +16,7 @@ interface CallLatencyStatsData {
   eou: LatencyStats | null
   llm: LatencyStats | null
   tts: LatencyStats | null
+  rag: LatencyStats | null
   total: LatencyStats | null
 }
 
@@ -56,7 +57,7 @@ export async function calculateLatencyStats(
       .from('agent_events')
       .select('data, event_type')
       .eq('call_id', callId)
-      .in('event_type', ['metrics_collected', 'total_latency'])
+      .in('event_type', ['metrics_collected', 'total_latency', 'knowledge_retrieved_with_speech'])
 
     if (metricsError) {
       console.error('[calculateLatencyStats] Error fetching metrics events:', metricsError)
@@ -74,6 +75,7 @@ export async function calculateLatencyStats(
     const eouValues: number[] = []
     const llmValues: number[] = []
     const ttsValues: number[] = []
+    const ragValues: number[] = []
     const totalValues: number[] = []
 
     metricsEvents.forEach((event) => {
@@ -103,22 +105,33 @@ export async function calculateLatencyStats(
           totalValues.push(metrics.totalLatency)
         }
       }
+      
+      // Handle RAG latency events
+      if (event.event_type === 'knowledge_retrieved_with_speech') {
+        // RAG latency is stored in latency_ms field at the top level of eventData
+        if (typeof eventData.latency_ms === 'number') {
+          console.log(`[calculateLatencyStats] Adding RAG latency value: ${eventData.latency_ms}`)
+          // Convert from milliseconds to seconds to match other metrics
+          ragValues.push(eventData.latency_ms / 1000)
+        }
+      }
     })
 
-    console.log(`[calculateLatencyStats] Collected values - EOU: ${eouValues.length}, LLM: ${llmValues.length}, TTS: ${ttsValues.length}, Total: ${totalValues.length}`)
+    console.log(`[calculateLatencyStats] Collected values - EOU: ${eouValues.length}, LLM: ${llmValues.length}, TTS: ${ttsValues.length}, RAG: ${ragValues.length}, Total: ${totalValues.length}`)
 
     // Calculate statistics for each metric type
     const stats = {
       eou: calculateStats(eouValues),
       llm: calculateStats(llmValues),
       tts: calculateStats(ttsValues),
+      rag: calculateStats(ragValues),
       total: calculateStats(totalValues),
     }
 
     console.log('[calculateLatencyStats] Calculated stats:', JSON.stringify(stats, null, 2))
     
     // Save to database if requested
-    if (options?.saveToDatabase && (stats.eou || stats.llm || stats.tts || stats.total)) {
+    if (options?.saveToDatabase && (stats.eou || stats.llm || stats.tts || stats.rag || stats.total)) {
       console.log('[calculateLatencyStats] Saving stats to database...')
       const { error: saveError } = await supabase
         .from('agent_events')
@@ -195,16 +208,18 @@ export async function GET(
     }
 
     // Check if we have any data at all
-    const hasData = stats.eou || stats.llm || stats.tts || stats.total
+    const hasData = stats.eou || stats.llm || stats.tts || stats.rag || stats.total
     const dataSummary = {
       hasEOU: !!stats.eou,
       hasLLM: !!stats.llm,
       hasTTS: !!stats.tts,
+      hasRAG: !!stats.rag,
       hasTotal: !!stats.total,
       counts: {
         eou: stats.eou?.count || 0,
         llm: stats.llm?.count || 0,
         tts: stats.tts?.count || 0,
+        rag: stats.rag?.count || 0,
         total: stats.total?.count || 0,
       }
     }

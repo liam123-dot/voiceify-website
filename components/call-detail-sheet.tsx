@@ -133,6 +133,7 @@ function getEventIcon(eventType: CallEventType) {
     case 'transcript':
       return <FileTextIcon className="size-4" />
     case 'knowledge_retrieved':
+    case 'knowledge_retrieved_with_speech':
       return <BookOpenIcon className="size-4" />
     default:
       return <ActivityIcon className="size-4" />
@@ -167,6 +168,8 @@ function getEventLabel(eventType: CallEventType): string {
       return 'Transcript Saved'
     case 'knowledge_retrieved':
       return 'Knowledge Retrieved'
+    case 'knowledge_retrieved_with_speech':
+      return 'Knowledge Retrieved (with Speech ID)'
     case 'transfer_initiated':
       return 'Transfer Initiated'
     case 'transfer_no_answer':
@@ -216,11 +219,14 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
           // Extract latency stats if available
           const latencyEvent = allEvents.find((e: AgentEvent) => e.event_type === 'call_latency_stats')
           if (latencyEvent) {
+            console.log('Found existing latency stats event')
             setLatencyStats(latencyEvent.data as CallLatencyStatsEventData)
             setLatencyStatsError(null)
           } else {
-            // No stats found, will need to calculate them on demand
+            console.log('No latency stats event found in events')
+            // No stats found as event, reset state
             setLatencyStats(null)
+            setLatencyStatsError(null)
           }
         }
       } catch (error) {
@@ -734,10 +740,11 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                                   return null
                                 })()}
                                 
-                                {event.event_type === 'knowledge_retrieved' && (() => {
-                                  const knowledgeData = event.data as { data?: { query?: string; latency_ms?: number; context_length?: number; retrieved_context?: string } }
-                                  const data = knowledgeData.data
-                                  if (data) {
+                                {(event.event_type === 'knowledge_retrieved' || event.event_type === 'knowledge_retrieved_with_speech') && (() => {
+                                  const knowledgeData = event.data as { data?: { query?: string; latency_ms?: number; context_length?: number; retrieved_context?: string; speechId?: string }; query?: string; latency_ms?: number; context_length?: number; retrieved_context?: string; speechId?: string }
+                                  // Handle both nested data structure and flat structure
+                                  const data = knowledgeData.data || knowledgeData
+                                  if (data && (data.query || data.retrieved_context)) {
                                     return (
                                       <div className="mt-2 space-y-1.5">
                                         {data.query && (
@@ -751,6 +758,9 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                                           )}
                                           {data.context_length && (
                                             <span>Context: {data.context_length} chars</span>
+                                          )}
+                                          {data.speechId && (
+                                            <span className="font-mono">Speech: {data.speechId.substring(0, 12)}...</span>
                                           )}
                                         </div>
                                         {data.retrieved_context && (
@@ -886,7 +896,7 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                         Calculate Statistics
                       </button>
                     </div>
-                  ) : latencyStats && (latencyStats.eou || latencyStats.llm || latencyStats.tts || latencyStats.total) ? (
+                  ) : latencyStats && (latencyStats.eou || latencyStats.llm || latencyStats.tts || latencyStats.rag || latencyStats.total) ? (
                     <div className="space-y-6">
                       {/* Helper function to get color based on value */}
                       {(() => {
@@ -997,6 +1007,15 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                                   {renderStatsRow('TTS Time-to-First-Byte', latencyStats.tts, { good: 0.2, warn: 0.4 })}
                                   <p className="text-xs text-muted-foreground mt-2">
                                     Time for TTS to start generating audio
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {latencyStats.rag && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  {renderStatsRow('RAG Knowledge Retrieval', latencyStats.rag, { good: 0.3, warn: 0.6 })}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Time to retrieve context from knowledge base
                                   </p>
                                 </div>
                               )}

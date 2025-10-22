@@ -145,6 +145,7 @@ export interface CallLatencyStatsEventData {
   eou: LatencyStats | null;
   llm: LatencyStats | null;
   tts: LatencyStats | null;
+  rag: LatencyStats | null;
   total: LatencyStats | null;
 }
 
@@ -318,6 +319,7 @@ export type CallEventType =
   | 'metrics_collected'
   | 'total_latency'
   | 'knowledge_retrieved'
+  | 'knowledge_retrieved_with_speech'
   // Summary events
   | 'session_complete'
   | 'transcript'
