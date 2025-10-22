@@ -95,17 +95,16 @@ export interface PipelineConfig {
  */
 export interface VADOptions {
   minSpeechDuration?: number; // Minimum speech duration in milliseconds
-  silenceTimeout?: number; // Silence timeout in milliseconds
-  prefixPadding?: number; // Audio padding before speech in milliseconds
-  silenceThreshold?: number; // Silence threshold (0.0 to 1.0)
+  minSilenceDuration?: number; // Minimum silence duration in milliseconds
+  prefixPaddingDuration?: number; // Audio padding before speech in milliseconds
 }
 
 /**
- * Turn Detector (EOU) options for MultilingualModel
+ * Turn Detector (EOU) options for AgentSession
  */
 export interface TurnDetectorOptions {
   minEndpointingDelay?: number; // Delay before considering turn complete (ms)
-  falseInterruptionTimeout?: number; // Time to wait before resuming after false interruption (ms)
+  maxEndpointingDelay?: number; // Maximum time to wait for user to continue speaking (ms)
 }
 
 /**
@@ -204,10 +203,9 @@ export const SAMPLE_CONFIGS = {
       type: 'server-vad' as TurnDetectionType,
       vadProvider: 'silero' as VADProvider,
       vadOptions: {
-        minSpeechDuration: 200,
-        silenceTimeout: 800,
-        prefixPadding: 300,
-        silenceThreshold: 0.5
+        minSpeechDuration: 50,
+        minSilenceDuration: 550,
+        prefixPaddingDuration: 500
       }
     },
     noiseCancellation: {
