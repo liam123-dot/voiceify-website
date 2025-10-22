@@ -305,8 +305,9 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
           pipeline: {
             stt: {
               provider: (values.sttModel?.split('/')[0] || 'deepgram') as 'deepgram' | 'assemblyai' | 'cartesia',
-              model: values.sttModel || 'deepgram/nova-2-phonecall',
-              inferenceType: values.sttInferenceType || 'livekit',
+              model: values.sttModel || 'deepgram/nova-3',
+              // AssemblyAI only supports LiveKit Inference, Deepgram Nova-3 supports both
+              inferenceType: values.sttModel?.startsWith('assemblyai/') ? 'livekit' : (values.sttInferenceType || 'livekit'),
               language: 'en',
             },
             llm: {
