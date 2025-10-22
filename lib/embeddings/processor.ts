@@ -1,6 +1,7 @@
 // Embedding and Chunking Utilities
 
-import { encode, decode } from 'gpt-tokenizer'
+import { encode } from 'gpt-tokenizer'
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 // Commented out - switched to Voyage AI embeddings
 // import OpenAI from 'openai';
 import type { DocumentChunk, EmbeddingResult } from '@/types/knowledge-base';
@@ -22,7 +23,7 @@ import type { DocumentChunk, EmbeddingResult } from '@/types/knowledge-base';
 
 /**
  * Chunk text into smaller pieces based on token count with overlap
- * Uses gpt-tokenizer for accurate token counting
+ * Uses LangChain's RecursiveCharacterTextSplitter for reliable chunking
  * @param text - The text to chunk
  * @param chunkSize - Target size in tokens per chunk
  * @param overlap - Number of overlapping tokens between chunks
@@ -37,69 +38,31 @@ export async function chunkText(
     return [];
   }
 
-  // Encode the entire text to tokens
-  const tokens = encode(text);
-  const totalTokens = tokens.length;
+  // Calculate approximate character size from token size
+  // Average ratio is roughly 4 characters per token for English text
+  const charsPerToken = 4;
+  const chunkSizeChars = chunkSize * charsPerToken;
+  const overlapChars = overlap * charsPerToken;
 
-  // If text is shorter than chunk size, return as single chunk
-  if (totalTokens <= chunkSize) {
-    return [{
-      content: text,
-      chunkIndex: 0,
-      chunkTotal: 1,
-      tokenCount: totalTokens,
-    }];
-  }
+  // Create LangChain text splitter
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: chunkSizeChars,
+    chunkOverlap: overlapChars,
+    separators: ['\n\n', '\n', '. ', '! ', '? ', '; ', ', ', ' ', ''],
+  });
 
-  const chunks: DocumentChunk[] = [];
-  let startIdx = 0;
-  let chunkIndex = 0;
+  // Split the text
+  const textChunks = await splitter.splitText(text);
 
-  while (startIdx < totalTokens) {
-    // Get chunk tokens
-    const endIdx = Math.min(startIdx + chunkSize, totalTokens);
-    const chunkTokens = tokens.slice(startIdx, endIdx);
-    
-    // Decode tokens back to text
-    const chunkText = decode(chunkTokens);
-    
-    // Try to split at sentence boundary if not at the end
-    let finalChunkText = chunkText;
-    let actualTokenCount = chunkTokens.length;
-    
-    if (endIdx < totalTokens) {
-      // Look for sentence boundaries (. ! ? followed by space or newline)
-      const sentenceEndings = /[.!?][\s\n]/g;
-      const matches = Array.from(chunkText.matchAll(sentenceEndings));
-      
-      if (matches.length > 0) {
-        // Find the last sentence boundary in the last 20% of the chunk
-        const cutoffPoint = Math.floor(chunkText.length * 0.8);
-        const viableMatches = matches.filter((m: RegExpMatchArray) => (m.index || 0) > cutoffPoint);
-        
-        if (viableMatches.length > 0) {
-          const lastMatch = viableMatches[viableMatches.length - 1];
-          const cutPoint = (lastMatch.index || 0) + lastMatch[0].length;
-          finalChunkText = chunkText.substring(0, cutPoint);
-          actualTokenCount = encode(finalChunkText).length;
-        }
-      }
-    }
-
-    chunks.push({
-      content: finalChunkText.trim(),
-      chunkIndex,
-      tokenCount: actualTokenCount,
-    });
-
-    // Move start index forward, accounting for overlap
-    startIdx = startIdx + actualTokenCount - overlap;
-    chunkIndex++;
-  }
-
-  // Set total count on all chunks
-  chunks.forEach(chunk => {
-    chunk.chunkTotal = chunks.length;
+  // Convert to DocumentChunk format with accurate token counts
+  const chunks: DocumentChunk[] = textChunks.map((content: string, index: number) => {
+    const tokenCount = encode(content).length;
+    return {
+      content,
+      chunkIndex: index,
+      tokenCount,
+      chunkTotal: textChunks.length,
+    };
   });
 
   return chunks;
@@ -204,6 +167,11 @@ export async function generateEmbedding(
 
 /**
  * Process text: chunk and generate embeddings
+ * 
+ * Note: This function returns all chunks with embeddings at once.
+ * For memory efficiency with large datasets, the caller should
+ * store chunks in batches rather than all at once.
+ * 
  * @param text - The text to process
  * @param chunkSize - Target size in tokens per chunk
  * @param overlap - Number of overlapping tokens between chunks
@@ -214,14 +182,20 @@ export async function processTextWithEmbeddings(
   chunkSize: number = 512,
   overlap: number = 50
 ): Promise<Array<DocumentChunk & { embedding: number[] }>> {
-  // Chunk the text
+  // Chunk the text using LangChain's reliable splitter
+  console.log('[processTextWithEmbeddings] Chunking text:', text.length, 'characters');
   const chunks = await chunkText(text, chunkSize, overlap);
+  console.log('[processTextWithEmbeddings] Created', chunks.length, 'chunks');
   
-  // Generate embeddings for each chunk with rate limiting
+  // Generate embeddings for each chunk sequentially
+  // Sequential processing avoids overwhelming the API and manages memory
   const chunksWithEmbeddings: Array<DocumentChunk & { embedding: number[] }> = [];
+  console.log('[processTextWithEmbeddings] Generating embeddings for', chunks.length, 'chunks');
   
-  for (const chunk of chunks) {
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
     try {
+      console.log(`[processTextWithEmbeddings] Processing chunk ${i + 1}/${chunks.length} (${chunk.content.length} chars)`);
       const result = await generateEmbedding(chunk.content);
       chunksWithEmbeddings.push({
         ...chunk,
@@ -229,14 +203,14 @@ export async function processTextWithEmbeddings(
         tokenCount: result.tokenCount, // Use actual token count from embedding API
       });
       
-      // Small delay to avoid rate limits (adjust as needed)
-      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
+      console.error(`[processTextWithEmbeddings] Failed on chunk ${i + 1}/${chunks.length}:`, error);
       // Re-throw to be handled by caller
       throw error;
     }
   }
   
+  console.log('[processTextWithEmbeddings] Successfully generated', chunksWithEmbeddings.length, 'embeddings');
   return chunksWithEmbeddings;
 }
 // 
