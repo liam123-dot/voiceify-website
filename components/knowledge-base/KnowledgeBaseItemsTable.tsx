@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { IconLoader2, IconTrash, IconFile, IconLink, IconFileText, IconDatabase, IconExternalLink, IconRefresh, IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
   TableBody,
@@ -83,6 +84,7 @@ interface KnowledgeBaseItemsTableProps {
 
 export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBaseItemsTableProps) {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [pageSize, setPageSize] = useState<number>(50)
@@ -183,6 +185,67 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
     deleteMutation.mutate(itemToDelete)
   }
 
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      // Delete all items in parallel
+      const deletePromises = itemIds.map(itemId =>
+        fetch(`/api/${slug}/knowledge-bases/${knowledgeBaseId}/items/${itemId}`, {
+          method: 'DELETE'
+        }).then(res => {
+          if (!res.ok) throw new Error(`Failed to delete item ${itemId}`)
+          return itemId
+        })
+      )
+      return Promise.all(deletePromises)
+    },
+    onMutate: async (itemIds: string[]) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
+
+      // Snapshot the previous value
+      const previousItems = queryClient.getQueryData(['knowledge-base-items', slug, knowledgeBaseId])
+
+      // Optimistically update the cache by removing the items
+      queryClient.setQueryData(
+        ['knowledge-base-items', slug, knowledgeBaseId],
+        (old: KnowledgeBaseItem[] | undefined) => {
+          if (!old) return []
+          return old.filter((item) => !itemIds.includes(item.id))
+        }
+      )
+
+      // Return a context object with the snapshotted value
+      return { previousItems }
+    },
+    onSuccess: (deletedIds) => {
+      const count = deletedIds.length
+      toast.success(`${count} item${count !== 1 ? 's' : ''} deleted successfully`)
+      clearSelection()
+      setItemToDelete(null)
+    },
+    onError: (error, itemIds, context) => {
+      // Revert the optimistic update on error
+      if (context?.previousItems) {
+        queryClient.setQueryData(
+          ['knowledge-base-items', slug, knowledgeBaseId],
+          context.previousItems
+        )
+      }
+      console.error('Error deleting items:', error)
+      toast.error('Failed to delete items')
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
+    },
+  })
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return
+    bulkDeleteMutation.mutate(Array.from(selectedIds))
+  }
+
   // Retry mutation for failed items
   const retryMutation = useMutation({
     mutationFn: async (itemId: string) => {
@@ -229,6 +292,33 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
       toast.error(error instanceof Error ? error.message : 'Failed to retry items')
     },
   })
+
+  // Selection helper functions
+  const toggleItem = (itemId: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId)
+      } else {
+        newSet.add(itemId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleAll = () => {
+    if (selectedIds.size === paginatedItems.length) {
+      // Deselect all
+      setSelectedIds(new Set())
+    } else {
+      // Select all on current page
+      setSelectedIds(new Set(paginatedItems.map((item: KnowledgeBaseItem) => item.id)))
+    }
+  }
+
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+  }
 
   // Check if an item has been processing for too long (>5 minutes)
   const isStuckProcessing = (item: KnowledgeBaseItem): boolean => {
@@ -305,10 +395,19 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
     setCurrentPage(1)
   }, [typeFilter, statusFilter, pageSize])
 
+  // Clear selection when filters or page changes
+  useEffect(() => {
+    clearSelection()
+  }, [typeFilter, statusFilter, currentPage, pageSize])
+
   // Count failed items for bulk retry button
   const failedCount = useMemo(() => {
     return items.filter((item: KnowledgeBaseItem) => item.status === 'failed').length
   }, [items])
+
+  // Check if all items on current page are selected
+  const allSelected = paginatedItems.length > 0 && selectedIds.size === paginatedItems.length
+  const someSelected = selectedIds.size > 0 && selectedIds.size < paginatedItems.length
 
 
   const getStatusBadge = (status: string) => {
@@ -371,6 +470,16 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
           </CardDescription>
           <CardAction>
             <div className="flex gap-2">
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setItemToDelete('bulk')}
+                  disabled={bulkDeleteMutation.isPending}
+                >
+                  <IconTrash className="mr-2 h-4 w-4" />
+                  Delete Selected ({selectedIds.size})
+                </Button>
+              )}
               {failedCount > 0 && (
                 <Button
                   variant="outline"
@@ -486,6 +595,14 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all"
+                        className={someSelected ? "data-[state=checked]:bg-primary" : ""}
+                      />
+                    </TableHead>
                     <TableHead className="w-[40%]">Name</TableHead>
                     <TableHead className="w-[15%]">Type</TableHead>
                     <TableHead className="w-[20%]">Status</TableHead>
@@ -501,6 +618,14 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                     
                     return (
                       <TableRow key={item.id} className="group">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(item.id)}
+                            onCheckedChange={() => toggleItem(item.id)}
+                            aria-label={`Select ${item.name}`}
+                            disabled={deleteMutation.isPending || bulkDeleteMutation.isPending}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
                             <div className="flex-shrink-0">
@@ -646,14 +771,20 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this item from your knowledge base and remove it from Ragie.
-              This action cannot be undone.
+              {itemToDelete === 'bulk' 
+                ? `This will permanently delete ${selectedIds.size} item${selectedIds.size !== 1 ? 's' : ''} from your knowledge base and remove ${selectedIds.size !== 1 ? 'them' : 'it'} from Ragie. This action cannot be undone.`
+                : 'This will permanently delete this item from your knowledge base and remove it from Ragie. This action cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            <AlertDialogCancel disabled={deleteMutation.isPending || bulkDeleteMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={itemToDelete === 'bulk' ? handleBulkDelete : handleDelete}
+              disabled={deleteMutation.isPending || bulkDeleteMutation.isPending}
+            >
+              {(deleteMutation.isPending || bulkDeleteMutation.isPending) ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
