@@ -235,7 +235,7 @@ function generateAgentTwiML(agent: AgentData, params: TwilioCallParams, callId: 
   
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial referUrl="${process.env.NEXT_PUBLIC_APP_URL}/api/calls/incoming/refer">
+  <Dial referUrl="${process.env.NEXT_PUBLIC_APP_URL}/api/calls/incoming/refer" ringTone="uk">
     <Sip>
       ${sipUri}
     </Sip>
