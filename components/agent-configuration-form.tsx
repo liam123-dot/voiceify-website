@@ -96,6 +96,9 @@ const formSchema = z.object({
   vadPrefixPaddingDuration: z.number().min(0).max(1000).optional(),
   turnDetectorMinEndpointingDelay: z.number().min(0).max(2000).optional(),
   turnDetectorMaxEndpointingDelay: z.number().min(1000).max(10000).optional(),
+  
+  // Knowledge base configuration
+  knowledgeBaseUseAsTool: z.boolean().optional(),
 }).superRefine((data, ctx) => {
   // Validate realtime fields when pipeline type is realtime
   if (data.pipelineType === 'realtime') {
@@ -228,6 +231,8 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         vadPrefixPaddingDuration: 500,
         turnDetectorMinEndpointingDelay: 500,
         turnDetectorMaxEndpointingDelay: 6000,
+        // Knowledge base defaults
+        knowledgeBaseUseAsTool: false,
       }
     }
 
@@ -274,6 +279,8 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
       vadPrefixPaddingDuration: initialConfig.turnDetection?.vadOptions?.prefixPaddingDuration ?? 500,
       turnDetectorMinEndpointingDelay: initialConfig.turnDetection?.turnDetectorOptions?.minEndpointingDelay ?? 500,
       turnDetectorMaxEndpointingDelay: initialConfig.turnDetection?.turnDetectorOptions?.maxEndpointingDelay ?? 6000,
+      // Knowledge base configuration
+      knowledgeBaseUseAsTool: initialConfig.knowledgeBase?.useAsTool ?? false,
     }
   }
 
@@ -344,6 +351,9 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         noiseCancellation: {
           enabled: values.noiseCancellation,
           type: 'bvc',
+        },
+        knowledgeBase: {
+          useAsTool: values.knowledgeBaseUseAsTool ?? false,
         },
         tools: [],
         settings: {
@@ -1616,6 +1626,40 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                     )}
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Knowledge Base Configuration */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Knowledge Base Configuration</CardTitle>
+                <CardDescription>
+                  Configure how the agent uses knowledge bases
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="knowledgeBaseUseAsTool"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Use Knowledge Base as Tool
+                        </FormLabel>
+                        <FormDescription>
+                          When enabled, the LLM decides when to search the knowledge base by calling a tool. When disabled, relevant context is automatically retrieved and pre-injected based on user queries.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
               </CardContent>
             </Card>
           </>

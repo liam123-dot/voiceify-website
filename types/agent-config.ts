@@ -137,6 +137,13 @@ export interface AgentTool {
 }
 
 /**
+ * Knowledge base configuration
+ */
+export interface KnowledgeBaseConfig {
+  useAsTool?: boolean; // Default: false (pre-inject mode). When true, LLM decides when to query via tool call
+}
+
+/**
  * Additional agent settings
  */
 export interface AgentSettings {
@@ -173,6 +180,9 @@ export interface AgentConfiguration {
   
   // Noise cancellation configuration
   noiseCancellation?: NoiseCancellationConfig;
+  
+  // Knowledge base configuration
+  knowledgeBase?: KnowledgeBaseConfig;
   
   // Tools configuration (empty for now, but ready for future use)
   tools?: AgentTool[];
