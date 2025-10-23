@@ -9,7 +9,7 @@ export interface KnowledgeBaseItem {
   id: string;
   knowledge_base_id: string;
   name: string;
-  type: 'file' | 'url' | 'text' | 'notion' | 'gdrive' | 'onedrive' | 'dropbox';
+  type: 'file' | 'url' | 'text' | 'notion' | 'gdrive' | 'onedrive' | 'dropbox' | 'rightmove_agent' | 'rightmove_property';
   url?: string;
   text_content?: string;
   file_type?: string;
@@ -20,6 +20,7 @@ export interface KnowledgeBaseItem {
   external_id?: string;
   external_url?: string;
   external_modified_at?: string;
+  parent_item_id?: string;
   status: 'pending' | 'processing' | 'indexed' | 'failed';
   chunk_size: number;
   chunk_overlap: number;
@@ -50,5 +51,12 @@ export interface DocumentChunk {
 export interface EmbeddingResult {
   embedding: number[];
   tokenCount: number;
+}
+
+// Rightmove Agent Types
+export interface RightmoveAgentConfig {
+  rentUrl?: string;
+  saleUrl?: string;
+  syncSchedule: 'daily' | 'weekly'; // Placeholder for future scheduling feature
 }
 

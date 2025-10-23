@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { IconLoader2, IconTrash, IconFile, IconLink, IconFileText, IconDatabase, IconExternalLink, IconRefresh, IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
+import { IconLoader2, IconTrash, IconFile, IconLink, IconFileText, IconDatabase, IconExternalLink, IconRefresh, IconChevronLeft, IconChevronRight, IconChevronDown, IconBuilding, IconHome } from "@tabler/icons-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
@@ -64,9 +64,15 @@ interface KnowledgeBaseItem {
   url?: string
   text_content?: string
   file_location?: string
+  parent_item_id?: string | null
+  metadata?: Record<string, unknown>
   created_at: string
   updated_at: string
   sync_error?: string | null
+}
+
+interface KnowledgeBaseItemWithChildren extends KnowledgeBaseItem {
+  children?: KnowledgeBaseItem[]
 }
 
 type KnowledgeBase = {
@@ -89,7 +95,22 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [pageSize, setPageSize] = useState<number>(50)
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [showChildItems, setShowChildItems] = useState<boolean>(true)
+  const [resyncingItems, setResyncingItems] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
+
+  const toggleExpanded = (itemId: string) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev)
+      if (next.has(itemId)) {
+        next.delete(itemId)
+      } else {
+        next.add(itemId)
+      }
+      return next
+    })
+  }
 
   // Fetch knowledge base details
   const { data: knowledgeBase, isLoading: isLoadingKB } = useQuery<KnowledgeBase | undefined>({
@@ -293,6 +314,53 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
     },
   })
 
+  // Re-sync mutation for rightmove_agent items
+  const resyncMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const response = await fetch(
+        `/api/${slug}/knowledge-bases/${knowledgeBaseId}/items/${itemId}/retry`,
+        { method: 'POST' }
+      )
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to re-sync agent')
+      }
+      return response.json()
+    },
+    onMutate: async (itemId: string) => {
+      setResyncingItems(prev => new Set(prev).add(itemId))
+    },
+    onSuccess: (_, itemId) => {
+      toast.success('Agent queued for re-sync. Properties will be refreshed.')
+      setResyncingItems(prev => {
+        const next = new Set(prev)
+        next.delete(itemId)
+        return next
+      })
+      queryClient.invalidateQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
+    },
+    onError: (error, itemId) => {
+      console.error('Error re-syncing agent:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to re-sync agent')
+      setResyncingItems(prev => {
+        const next = new Set(prev)
+        next.delete(itemId)
+        return next
+      })
+    },
+  })
+
+  // Organize items into parent-child hierarchy
+  const organizedItems = useMemo(() => {
+    const parents = items.filter((i: KnowledgeBaseItem) => !i.parent_item_id)
+    const children = items.filter((i: KnowledgeBaseItem) => i.parent_item_id)
+    
+    return parents.map((parent: KnowledgeBaseItem): KnowledgeBaseItemWithChildren => ({
+      ...parent,
+      children: children.filter((c: KnowledgeBaseItem) => c.parent_item_id === parent.id)
+    }))
+  }, [items])
+
   // Selection helper functions
   const toggleItem = (itemId: string) => {
     setSelectedIds(prev => {
@@ -361,24 +429,38 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
     return text.substring(0, maxLength) + '...'
   }
 
-  // Filter and paginate items
+  // Filter and paginate items with hierarchical support
   const filteredItems = useMemo(() => {
     if (!items || items.length === 0) return []
     
-    let filtered = [...items] as KnowledgeBaseItem[]
+    let filtered = organizedItems
     
     // Apply type filter
     if (typeFilter !== 'all') {
-      filtered = filtered.filter(item => item.type === typeFilter)
+      filtered = filtered.filter((item: KnowledgeBaseItemWithChildren) => item.type === typeFilter)
     }
     
-    // Apply status filter
+    // Apply status filter  
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(item => item.status === statusFilter)
+      filtered = filtered.filter((item: KnowledgeBaseItemWithChildren) => item.status === statusFilter)
     }
     
-    return filtered
-  }, [items, typeFilter, statusFilter])
+    // Flatten for display based on showChildItems toggle
+    if (!showChildItems) {
+      // Only show parents
+      return filtered
+    } else {
+      // Show parents and children
+      const flattened: KnowledgeBaseItem[] = []
+      filtered.forEach((parent: KnowledgeBaseItemWithChildren) => {
+        flattened.push(parent)
+        if (parent.children && parent.children.length > 0 && expandedItems.has(parent.id)) {
+          flattened.push(...parent.children)
+        }
+      })
+      return flattened
+    }
+  }, [organizedItems, typeFilter, statusFilter, showChildItems, expandedItems])
 
   // Paginated items
   const paginatedItems = useMemo(() => {
@@ -446,9 +528,28 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
         return <IconLink className="h-4 w-4 text-muted-foreground" />
       case 'text':
         return <IconFileText className="h-4 w-4 text-muted-foreground" />
+      case 'rightmove_agent':
+        return <IconBuilding className="h-4 w-4 text-purple-600" />
+      case 'rightmove_property':
+        return <IconHome className="h-4 w-4 text-blue-600" />
       default:
         return null
     }
+  }
+
+  const getAgentChildSummary = (children: KnowledgeBaseItem[]) => {
+    const statuses = children.reduce((acc, child) => {
+      acc[child.status] = (acc[child.status] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    const parts = []
+    if (statuses.indexed) parts.push(`${statuses.indexed} indexed`)
+    if (statuses.processing) parts.push(`${statuses.processing} processing`)
+    if (statuses.pending) parts.push(`${statuses.pending} pending`)
+    if (statuses.failed) parts.push(`${statuses.failed} failed`)
+
+    return parts.join(', ')
   }
 
   return (
@@ -519,12 +620,12 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
             <>
               {/* Filters and Controls */}
               <div className="flex items-center justify-between gap-4 mb-4">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
                   {/* Type Filter */}
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Type:</span>
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
-                      <SelectTrigger className="w-[120px]">
+                      <SelectTrigger className="w-[150px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -532,6 +633,7 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                         <SelectItem value="url">URL</SelectItem>
                         <SelectItem value="text">Text</SelectItem>
                         <SelectItem value="file">File</SelectItem>
+                        <SelectItem value="rightmove_agent">Property Agent</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -551,6 +653,21 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                         <SelectItem value="failed">Failed</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Show Child Items Toggle */}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="show-children"
+                      checked={showChildItems}
+                      onCheckedChange={(checked) => setShowChildItems(checked as boolean)}
+                    />
+                    <label
+                      htmlFor="show-children"
+                      className="text-sm text-muted-foreground cursor-pointer"
+                    >
+                      Show child items
+                    </label>
                   </div>
                 </div>
 
@@ -595,6 +712,7 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[30px]"></TableHead>
                     <TableHead className="w-[40px]">
                       <Checkbox
                         checked={allSelected}
@@ -603,21 +721,49 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                         className={someSelected ? "data-[state=checked]:bg-primary" : ""}
                       />
                     </TableHead>
-                    <TableHead className="w-[40%]">Name</TableHead>
-                    <TableHead className="w-[15%]">Type</TableHead>
-                    <TableHead className="w-[20%]">Status</TableHead>
-                    <TableHead className="w-[15%]">Created</TableHead>
+                    <TableHead className="w-[35%]">Name</TableHead>
+                    <TableHead className="w-[12%]">Type</TableHead>
+                    <TableHead className="w-[18%]">Status</TableHead>
+                    <TableHead className="w-[10%]">Items</TableHead>
+                    <TableHead className="w-[13%]">Created</TableHead>
                     <TableHead className="w-[10%] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedItems.map((item: KnowledgeBaseItem) => {
+                    const isParent = !item.parent_item_id
+                    const parent = isParent ? organizedItems.find((p: KnowledgeBaseItemWithChildren) => p.id === item.id) : null
+                    const hasChildren = parent && parent.children && parent.children.length > 0
+                    const isExpanded = expandedItems.has(item.id)
+                    const isChild = !!item.parent_item_id
                     const isFailed = item.status === 'failed'
                     const displayName = truncateText(item.name, 60)
                     const displayUrl = item.url ? truncateText(item.url, 50) : null
                     
                     return (
-                      <TableRow key={item.id} className="group">
+                      <TableRow 
+                        key={item.id} 
+                        className={`group ${isChild ? 'bg-muted/30' : ''}`}
+                      >
+                        {/* Expand/Collapse Column */}
+                        <TableCell className="pr-0">
+                          {hasChildren && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => toggleExpanded(item.id)}
+                              className="h-6 w-6"
+                            >
+                              {isExpanded ? (
+                                <IconChevronDown className="h-4 w-4" />
+                              ) : (
+                                <IconChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </TableCell>
+
+                        {/* Checkbox Column */}
                         <TableCell>
                           <Checkbox
                             checked={selectedIds.has(item.id)}
@@ -626,26 +772,38 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                             disabled={deleteMutation.isPending || bulkDeleteMutation.isPending}
                           />
                         </TableCell>
+
+                        {/* Name Column */}
                         <TableCell className="font-medium">
-                          <div className="flex items-center gap-3">
+                          <div className={`flex items-center gap-3 ${isChild ? 'pl-8' : ''}`}>
+                            {isChild && (
+                              <div className="border-l-2 border-border h-4 -ml-4 mr-2" />
+                            )}
                             <div className="flex-shrink-0">
                               {getTypeIcon(item.type)}
                             </div>
                             <div className="flex flex-col min-w-0 max-w-full">
-                              <TooltipProvider delayDuration={300}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="text-sm font-medium cursor-default">
-                                      {displayName}
-                                    </span>
-                                  </TooltipTrigger>
-                                  {item.name.length > 60 && (
-                                    <TooltipContent side="top" className="max-w-md">
-                                      <p className="break-words">{item.name}</p>
-                                    </TooltipContent>
-                                  )}
-                                </Tooltip>
-                              </TooltipProvider>
+                              <div className="flex items-center gap-2">
+                                <TooltipProvider delayDuration={300}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`text-sm font-medium cursor-default ${isChild ? 'text-muted-foreground' : ''}`}>
+                                        {displayName}
+                                      </span>
+                                    </TooltipTrigger>
+                                    {item.name.length > 60 && (
+                                      <TooltipContent side="top" className="max-w-md">
+                                        <p className="break-words">{item.name}</p>
+                                      </TooltipContent>
+                                    )}
+                                  </Tooltip>
+                                </TooltipProvider>
+                                {item.type === 'rightmove_agent' && (
+                                  <Badge variant="outline" className="border-purple-500 text-purple-700 text-xs">
+                                    Agent
+                                  </Badge>
+                                )}
+                              </div>
                               {item.url && (
                                 <TooltipProvider delayDuration={300}>
                                   <Tooltip>
@@ -672,28 +830,58 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                             </div>
                           </div>
                         </TableCell>
+
+                        {/* Type Column */}
                         <TableCell>
-                          <Badge variant="outline" className="capitalize text-xs">
-                            {item.type}
+                          <Badge variant={item.type === 'rightmove_property' ? 'secondary' : 'outline'} className="capitalize text-xs">
+                            {item.type === 'rightmove_agent' ? 'Property Agent' : 
+                             item.type === 'rightmove_property' ? 'Property' : 
+                             item.type}
                           </Badge>
                         </TableCell>
+
+                        {/* Status Column */}
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getStatusBadge(item.status)}
-                            {isFailed && item.sync_error && (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="text-xs text-muted-foreground cursor-help">ⓘ</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-sm">
-                                    <p className="text-xs">{item.sync_error}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                          </div>
+                          {hasChildren && parent ? (
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="secondary" className="text-xs w-fit">
+                                {parent.children!.length} properties
+                              </Badge>
+                              {parent.children!.length > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {getAgentChildSummary(parent.children!)}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(item.status)}
+                              {isFailed && item.sync_error && (
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-xs text-muted-foreground cursor-help">ⓘ</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-sm">
+                                      <p className="text-xs">{item.sync_error}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                          )}
                         </TableCell>
+
+                        {/* Items Column */}
+                        <TableCell className="text-sm text-muted-foreground">
+                          {hasChildren && parent ? (
+                            <span className="font-medium">{parent.children!.length}</span>
+                          ) : (
+                            <span>-</span>
+                          )}
+                        </TableCell>
+
+                        {/* Created Column */}
                         <TableCell className="text-sm text-muted-foreground">
                           {new Date(item.created_at).toLocaleDateString('en-US', {
                             month: 'short',
@@ -701,8 +889,22 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                             year: 'numeric'
                           })}
                         </TableCell>
+
+                        {/* Actions Column */}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {item.type === 'rightmove_agent' && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => resyncMutation.mutate(item.id)}
+                                disabled={resyncingItems.has(item.id)}
+                                title="Re-sync properties"
+                              >
+                                <IconRefresh className={`h-4 w-4 ${resyncingItems.has(item.id) ? 'animate-spin' : ''}`} />
+                              </Button>
+                            )}
                             {isFailed && (
                               <Button
                                 variant="ghost"
@@ -772,8 +974,15 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
               {itemToDelete === 'bulk' 
-                ? `This will permanently delete ${selectedIds.size} item${selectedIds.size !== 1 ? 's' : ''} from your knowledge base and remove ${selectedIds.size !== 1 ? 'them' : 'it'} from Ragie. This action cannot be undone.`
-                : 'This will permanently delete this item from your knowledge base and remove it from Ragie. This action cannot be undone.'}
+                ? `This will permanently delete ${selectedIds.size} item${selectedIds.size !== 1 ? 's' : ''} from your knowledge base. This action cannot be undone.`
+                : (() => {
+                    const item = organizedItems.find((i: KnowledgeBaseItemWithChildren) => i.id === itemToDelete)
+                    const childCount = item?.children?.length || 0
+                    if (childCount > 0) {
+                      return `This will permanently delete this item and all ${childCount} child propert${childCount !== 1 ? 'ies' : 'y'} from your knowledge base. This action cannot be undone.`
+                    }
+                    return 'This will permanently delete this item from your knowledge base. This action cannot be undone.'
+                  })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -783,6 +992,7 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
             <AlertDialogAction 
               onClick={itemToDelete === 'bulk' ? handleBulkDelete : handleDelete}
               disabled={deleteMutation.isPending || bulkDeleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {(deleteMutation.isPending || bulkDeleteMutation.isPending) ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>

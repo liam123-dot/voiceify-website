@@ -51,6 +51,7 @@
     "@workos-inc/node": "^7.71.0",
     "@workos-inc/widgets": "^1.4.2",
     "ai": "^5.0.76",
+    "apify-client": "^2.19.0",
     "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

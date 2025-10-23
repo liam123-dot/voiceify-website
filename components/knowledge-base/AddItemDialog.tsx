@@ -5,7 +5,15 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { toast } from "sonner"
-import { IconPlus, IconLoader2 } from "@tabler/icons-react"
+import { IconPlus, IconLoader2, IconInfoCircle } from "@tabler/icons-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -44,6 +52,16 @@ const fileSchema = z.object({
   file: z.instanceof(File, { message: "File is required" }),
 })
 
+const rightmoveAgentSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  rentUrl: z.string().url("Must be a valid URL").or(z.literal("")),
+  saleUrl: z.string().url("Must be a valid URL").or(z.literal("")),
+  syncSchedule: z.enum(["daily", "weekly"]).default("daily"),
+}).refine((data) => data.rentUrl !== "" || data.saleUrl !== "", {
+  message: "At least one URL (rental or sale) is required",
+  path: ["rentUrl"],
+})
+
 interface AddItemDialogProps {
   slug: string
   knowledgeBaseId: string
@@ -73,13 +91,60 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
     defaultValues: { name: "", file: undefined },
   })
 
+  const rightmoveAgentForm = useForm({
+    resolver: zodResolver(rightmoveAgentSchema),
+    defaultValues: { name: "", rentUrl: "", saleUrl: "", syncSchedule: "daily" as const },
+  })
+
   type UrlFormValues = z.infer<typeof urlSchema>
   type TextFormValues = z.infer<typeof textSchema>
   type FileFormValues = z.infer<typeof fileSchema>
+  type RightmoveAgentFormValues = z.infer<typeof rightmoveAgentSchema>
 
-  const handleSubmit = async (type: 'url' | 'text' | 'file', values: UrlFormValues | TextFormValues | FileFormValues) => {
+  const handleSubmit = async (
+    type: 'url' | 'text' | 'file' | 'rightmove_agent', 
+    values: UrlFormValues | TextFormValues | FileFormValues | RightmoveAgentFormValues
+  ) => {
     try {
       setIsSubmitting(true)
+      
+      // Handle rightmove_agent differently (JSON payload)
+      if (type === 'rightmove_agent' && 'rentUrl' in values) {
+        // Build metadata with only non-empty URLs
+        const metadata: Record<string, string> = {
+          syncSchedule: values.syncSchedule,
+        }
+        if (values.rentUrl) metadata.rentUrl = values.rentUrl
+        if (values.saleUrl) metadata.saleUrl = values.saleUrl
+
+        const response = await fetch(
+          `/api/${slug}/knowledge-bases/${knowledgeBaseId}/items`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              type: 'rightmove_agent',
+              name: values.name,
+              metadata,
+            }),
+          }
+        )
+
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Failed to create Rightmove Agent')
+        }
+
+        toast.success('Rightmove Agent created successfully. Processing properties...')
+        rightmoveAgentForm.reset()
+        setOpen(false)
+        onItemAdded()
+        return
+      }
+
+      // Handle other types with FormData
       const formData = new FormData()
       formData.append('type', type)
       formData.append('name', values.name)
@@ -264,10 +329,11 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
         </DialogHeader>
         <div className="flex-1 overflow-y-auto -mx-6 px-6">
         <Tabs defaultValue="website" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="website">Website</TabsTrigger>
             <TabsTrigger value="text">Text</TabsTrigger>
             <TabsTrigger value="file">File</TabsTrigger>
+            <TabsTrigger value="property-agent">Property Agent</TabsTrigger>
           </TabsList>
 
           <TabsContent value="website" className="space-y-4">
@@ -467,6 +533,90 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
                 <div className="flex justify-end">
                   <Button type="submit" disabled={isSubmitting || !selectedFile}>
                     {isSubmitting ? 'Uploading...' : 'Upload File'}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </TabsContent>
+
+          <TabsContent value="property-agent" className="space-y-4">
+            <Alert>
+              <IconInfoCircle className="h-4 w-4" />
+              <AlertDescription>
+                This will scrape all properties from the provided URL(s) and create searchable items in your knowledge base. At least one URL is required.
+              </AlertDescription>
+            </Alert>
+            <Form {...rightmoveAgentForm}>
+              <form onSubmit={rightmoveAgentForm.handleSubmit((v) => handleSubmit('rightmove_agent', v))} className="space-y-4">
+                <FormField
+                  control={rightmoveAgentForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Agent Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Aston Gray Properties" {...field} />
+                      </FormControl>
+                      <FormDescription>A descriptive name for this property agent</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={rightmoveAgentForm.control}
+                  name="rentUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rental Properties URL (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://www.rightmove.co.uk/property-to-rent/..." {...field} />
+                      </FormControl>
+                      <FormDescription>Rightmove URL for rental properties</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={rightmoveAgentForm.control}
+                  name="saleUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sale Properties URL (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://www.rightmove.co.uk/property-for-sale/..." {...field} />
+                      </FormControl>
+                      <FormDescription>Rightmove URL for sale properties</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={rightmoveAgentForm.control}
+                  name="syncSchedule"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sync Schedule</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select sync frequency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Scheduling coming soon - this setting is saved for future use
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating Agent...' : 'Create Property Agent'}
                   </Button>
                 </div>
               </form>

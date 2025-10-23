@@ -12,13 +12,12 @@ export async function GET(
   { params }: { params: Promise<{ slug: string; id: string }> }
 ) {
   try {
-    const { user, organizationId } = await getAuthSession()
+    const { slug, id } = await params
+    const { user, organizationId } = await getAuthSession(slug)
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const { slug, id } = await params
 
     const supabase = await createServiceClient()
 
@@ -106,60 +105,104 @@ export async function POST(
       return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
     }
 
-    const formData = await request.formData()
-    const type = formData.get('type') as string
-    const name = formData.get('name') as string
+    // Check content type to handle JSON or FormData
+    const contentType = request.headers.get('content-type')
+    const isJson = contentType?.includes('application/json')
 
-    if (!type || !name) {
-      return NextResponse.json({ error: 'Type and name are required' }, { status: 400 })
-    }
+    let type: string
+    let name: string
+    let itemData: Record<string, unknown>
 
-    // Validate type-specific required fields
-    if (type === 'url') {
-      const url = formData.get('url') as string
-      if (!url) {
-        return NextResponse.json({ error: 'URL is required for url type' }, { status: 400 })
+    if (isJson) {
+      // Handle JSON payload (for rightmove_agent and similar types)
+      const body = await request.json()
+      type = body.type
+      name = body.name
+
+      if (!type || !name) {
+        return NextResponse.json({ error: 'Type and name are required' }, { status: 400 })
       }
-      
-      // Check if URL already exists in this knowledge base
-      const urlExists = await checkUrlExists(knowledgeBaseId, url)
-      if (urlExists) {
-        return NextResponse.json({ error: 'This URL already exists in the knowledge base' }, { status: 409 })
-      }
-    } else if (type === 'text') {
-      const textContent = formData.get('text_content') as string
-      if (!textContent) {
-        return NextResponse.json({ error: 'Text content is required for text type' }, { status: 400 })
-      }
-    } else if (type === 'file') {
-      const file = formData.get('file') as File
-      if (!file) {
-        return NextResponse.json({ error: 'File is required for file type' }, { status: 400 })
+
+      if (type === 'rightmove_agent') {
+        const metadata = body.metadata
+        if (!metadata || (!metadata.rentUrl && !metadata.saleUrl)) {
+          return NextResponse.json({ 
+            error: 'At least one URL (rentUrl or saleUrl) is required for rightmove_agent type' 
+          }, { status: 400 })
+        }
+
+        // Create the rightmove_agent item
+        const result = await createKnowledgeBaseItem({
+          knowledgeBaseId,
+          organizationId,
+          name,
+          type: 'rightmove_agent',
+          metadata,
+          chunkSize: body.chunkSize,
+          chunkOverlap: body.chunkOverlap,
+        })
+        itemData = result.itemData
+      } else {
+        return NextResponse.json({ error: 'JSON payload only supported for rightmove_agent type' }, { status: 400 })
       }
     } else {
-      return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+      // Handle FormData payload (for url, text, file types)
+      const formData = await request.formData()
+      type = formData.get('type') as string
+      name = formData.get('name') as string
+
+      if (!type || !name) {
+        return NextResponse.json({ error: 'Type and name are required' }, { status: 400 })
+      }
+
+      // Validate type-specific required fields
+      if (type === 'url') {
+        const url = formData.get('url') as string
+        if (!url) {
+          return NextResponse.json({ error: 'URL is required for url type' }, { status: 400 })
+        }
+        
+        // Check if URL already exists in this knowledge base
+        const urlExists = await checkUrlExists(knowledgeBaseId, url)
+        if (urlExists) {
+          return NextResponse.json({ error: 'This URL already exists in the knowledge base' }, { status: 409 })
+        }
+      } else if (type === 'text') {
+        const textContent = formData.get('text_content') as string
+        if (!textContent) {
+          return NextResponse.json({ error: 'Text content is required for text type' }, { status: 400 })
+        }
+      } else if (type === 'file') {
+        const file = formData.get('file') as File
+        if (!file) {
+          return NextResponse.json({ error: 'File is required for file type' }, { status: 400 })
+        }
+      } else {
+        return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+      }
+
+      // Get optional chunking config
+      const chunkSize = formData.get('chunk_size') 
+        ? parseInt(formData.get('chunk_size') as string, 10) 
+        : undefined
+      const chunkOverlap = formData.get('chunk_overlap')
+        ? parseInt(formData.get('chunk_overlap') as string, 10)
+        : undefined
+
+      // Create item data
+      const result = await createKnowledgeBaseItem({
+        knowledgeBaseId,
+        organizationId,
+        name,
+        url: formData.get('url') as string | undefined,
+        text_content: formData.get('text_content') as string | undefined,
+        file: formData.get('file') as File | undefined,
+        type: type as 'url' | 'text' | 'file',
+        chunkSize,
+        chunkOverlap,
+      })
+      itemData = result.itemData
     }
-
-    // Get optional chunking config
-    const chunkSize = formData.get('chunk_size') 
-      ? parseInt(formData.get('chunk_size') as string, 10) 
-      : undefined
-    const chunkOverlap = formData.get('chunk_overlap')
-      ? parseInt(formData.get('chunk_overlap') as string, 10)
-      : undefined
-
-    // Create item data
-    const { itemData } = await createKnowledgeBaseItem({
-      knowledgeBaseId,
-      organizationId,
-      name,
-      url: formData.get('url') as string | undefined,
-      text_content: formData.get('text_content') as string | undefined,
-      file: formData.get('file') as File | undefined,
-      type: type as 'url' | 'text' | 'file',
-      chunkSize,
-      chunkOverlap,
-    })
 
     // Insert the item into the database
     const item = await insertKnowledgeBaseItem(itemData)

@@ -7,7 +7,8 @@ export interface CreateItemInput {
   url?: string;
   text_content?: string;
   file?: File;
-  type: "url" | "text" | "file";
+  type: "url" | "text" | "file" | "rightmove_agent";
+  metadata?: Record<string, unknown>;
   chunkSize?: number;
   chunkOverlap?: number;
 }
@@ -32,10 +33,18 @@ export async function createKnowledgeBaseItem(
     chunk_overlap: input.chunkOverlap || 50,
   };
 
+  // Add metadata if provided
+  if (input.metadata) {
+    itemData.metadata = input.metadata;
+  }
+
   if (input.type === "url" && input.url) {
     itemData.url = input.url;
   } else if (input.type === "text" && input.text_content) {
     itemData.text_content = input.text_content;
+  } else if (input.type === "rightmove_agent") {
+    // rightmove_agent type only needs metadata (which is already added above)
+    // Processing will be handled by the background task
   } else if (input.type === "file" && input.file) {
     const file = input.file;
 

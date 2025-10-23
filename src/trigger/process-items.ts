@@ -1,44 +1,50 @@
-import { logger, schemaTask, wait } from "@trigger.dev/sdk/v3";
+import { logger, schemaTask } from "@trigger.dev/sdk/v3";
 import z from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { KnowledgeBaseItem, DocumentChunk } from "@/types/knowledge-base";
-import { processTextWithEmbeddings } from "@/lib/embeddings/processor";
+import type { KnowledgeBaseItem } from "@/types/knowledge-base";
 import axios from "axios";
+import { processUrl } from "./processors/url";
+import { processText } from "./processors/text";
+import { processRightmoveAgent } from "./processors/rightmove-agent";
+import type { ProcessResult } from "./processors/url";
 
 /**
  * ╔═══════════════════════════════════════════════════════════════════════╗
- * ║           KNOWLEDGE BASE ITEM PROCESSING WITH SMART RETRIES           ║
+ * ║      KNOWLEDGE BASE ITEM PROCESSING WITH MODULAR PROCESSORS           ║
  * ║                    & CONTEXTUAL RETRIEVAL (ANTHROPIC)                 ║
  * ╚═══════════════════════════════════════════════════════════════════════╝
  * 
- * This task processes knowledge base items (URLs, text, files) and generates
- * embeddings with intelligent retry logic for rate limiting and transient errors.
+ * This task processes knowledge base items using a modular processor architecture:
+ * 
+ * PROCESSOR ARCHITECTURE:
+ * ======================
+ * - Single task entry point (processItem) routes to type-specific processors
+ * - Processors handle: URL, text, rightmove_agent, and future types
+ * - Each processor is in a separate file for maintainability
+ * - Shared utilities (Supabase, status updates) kept in this file
+ * 
+ * PROCESSORS:
+ *   • url:              Fetches content via Firecrawl, generates embeddings
+ *   • text:             Directly embeds provided text content
+ *   • rightmove_agent:  Scrapes properties via Apify, creates child items
+ *   • file:             (Not yet implemented)
  * 
  * CONTEXTUAL RETRIEVAL:
  * ====================
  * Implements Anthropic's Contextual Retrieval technique to improve search accuracy:
  * https://www.anthropic.com/engineering/contextual-retrieval
  * 
- * Before embedding each chunk, we use Claude (via OpenRouter) to generate a short
- * contextual summary that situates the chunk within the whole document. This context
- * is prepended to the chunk before embedding.
- * 
  * Benefits (per Anthropic's research):
  *   • 49% reduction in failed retrievals (embeddings + BM25)
  *   • 67% reduction with reranking
  *   • Chunks maintain context even when split from larger documents
  * 
- * Example:
- *   Original: "The company's revenue grew by 3% over the previous quarter."
- *   Contextualized: "This chunk is from an SEC filing on ACME corp's performance 
- *                    in Q2 2023; the previous quarter's revenue was $314 million.
- *                    The company's revenue grew by 3% over the previous quarter."
- * 
  * RETRY STRATEGY:
  * ===============
  * 
- * 1. API-Level Retries (5 attempts each):
+ * 1. API-Level Retries (5 attempts each - handled in processors):
  *    • Firecrawl API (URL scraping)
+ *    • Apify API (Rightmove scraping)
  *    • OpenRouter API (contextual generation)
  *    • Embedding Provider API (Voyage AI)
  *    
@@ -46,22 +52,11 @@ import axios from "axios";
  *      - Respects Retry-After header when present
  *      - Exponential backoff: 2^attempt × 2 seconds + jitter
  *      - Max delay: 2 minutes per retry
- *      - Example: 4s → 8s → 16s → 32s → 64s
  *    
- *    Other Errors:
- *      - Shorter exponential backoff: 2^attempt seconds + jitter
- *      - Max delay: 30 seconds
- *      - Example: 2s → 4s → 8s → 16s → 30s
- * 
- * 2. Task-Level Retries (5 attempts):
+ * 2. Task-Level Retries (5 attempts - handled by Trigger.dev):
  *    • Handles catastrophic failures that bypass API retries
  *    • Factor: 2.5x exponential backoff with jitter
  *    • Range: 2s minimum → 60s maximum
- *    • Example: 2s → 5s → 12s → 30s → 60s
- * 
- * TOTAL RESILIENCE:
- *   Up to 5 API retries × 5 task retries = 25 total attempts possible
- *   Most issues resolve within first 2-3 API retries
  * 
  * LOGGING:
  *   ⏸️  = Rate limited (waiting)
@@ -70,6 +65,20 @@ import axios from "axios";
  *   ✅ = Success
  *   ❌ = Final failure
  */
+
+/**
+ * Type-specific processor registry
+ * Add new processors here as they're implemented
+ */
+const PROCESSORS: Record<
+  string,
+  (supabase: SupabaseClient, item: KnowledgeBaseItem) => Promise<ProcessResult>
+> = {
+  url: processUrl,
+  text: processText,
+  rightmove_agent: processRightmoveAgent,
+  // file: processFile, // TODO: Implement file processor
+};
 
 /**
  * Create Supabase client for Trigger.dev tasks
@@ -106,34 +115,6 @@ function isRateLimitError(error: unknown): boolean {
   }
   return false;
 }
-
-/**
- * Extract retry-after delay from error response
- * Returns delay in seconds, defaults to exponential backoff if not present
- */
-function getRetryAfterDelay(error: unknown, attemptNumber: number): number {
-  if (axios.isAxiosError(error)) {
-    const retryAfter = error.response?.headers['retry-after'];
-    if (retryAfter) {
-      // If it's a number, it's seconds
-      const parsed = parseInt(retryAfter, 10);
-      if (!isNaN(parsed)) {
-        return parsed;
-      }
-      // If it's a date, calculate the difference
-      const retryDate = new Date(retryAfter);
-      if (!isNaN(retryDate.getTime())) {
-        return Math.max(0, Math.ceil((retryDate.getTime() - Date.now()) / 1000));
-      }
-    }
-  }
-  
-  // Default exponential backoff: 2^attempt * 2 seconds with jitter
-  const baseDelay = Math.pow(2, attemptNumber) * 2;
-  const jitter = Math.random() * 2; // 0-2 seconds of jitter
-  return Math.min(baseDelay + jitter, 120); // Cap at 2 minutes
-}
-
 
 /**
  * Fetch knowledge base item from database
@@ -185,230 +166,6 @@ async function updateItemStatus(
 }
 
 /**
- * Fetch and extract text from a URL using Firecrawl API
- * Handles rate limiting with exponential backoff
- */
-async function fetchTextFromURL(url: string, maxRetries = 5): Promise<string> {
-  logger.info("📥 Fetching content from URL", { url });
-
-  const apiKey = process.env.FIRECRAWL_API_KEY;
-  if (!apiKey) {
-    throw new Error("Firecrawl API key not configured");
-  }
-
-  let lastError: unknown;
-  
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await axios.post(
-        "https://api.firecrawl.dev/v2/scrape",
-        {
-          url: url,
-          formats: ["markdown"],
-        },
-        {
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          timeout: 60000, // 60 second timeout
-        }
-      );
-
-      if (!response.data.success || !response.data.data?.markdown) {
-        throw new Error("No content extracted from URL via Firecrawl");
-      }
-
-      const contentLength = response.data.data.markdown.length;
-      const sizeKB = (contentLength / 1024).toFixed(2);
-      logger.info("✅ Content fetched successfully", { 
-        sizeKB: `${sizeKB} KB`,
-        contentLength,
-        attempt: attempt > 0 ? attempt + 1 : undefined
-      });
-
-      return response.data.data.markdown;
-      
-    } catch (error) {
-      lastError = error;
-      
-      // Check if it's a rate limit error
-      if (isRateLimitError(error)) {
-        if (attempt < maxRetries) {
-          const delaySeconds = getRetryAfterDelay(error, attempt);
-          logger.warn("⏸️  Rate limited by Firecrawl API, waiting before retry", {
-            attempt: attempt + 1,
-            maxRetries: maxRetries + 1,
-            delaySeconds: delaySeconds.toFixed(1),
-            retryIn: `${delaySeconds.toFixed(1)}s`
-          });
-          
-          await wait.for({ seconds: delaySeconds });
-          continue;
-        }
-      }
-      
-      // For other errors, retry with shorter delay
-      if (attempt < maxRetries) {
-        const delaySeconds = Math.min(Math.pow(2, attempt) * 1 + Math.random(), 30);
-        logger.warn("⚠️  Error fetching from Firecrawl, retrying", {
-          error: error instanceof Error ? error.message : String(error),
-          attempt: attempt + 1,
-          maxRetries: maxRetries + 1,
-          delaySeconds: delaySeconds.toFixed(1)
-        });
-        
-        await wait.for({ seconds: delaySeconds });
-        continue;
-      }
-      
-      // Final attempt failed
-      throw error;
-    }
-  }
-  
-  throw lastError;
-}
-
-/**
- * Generate embeddings with retry logic for rate limits
- */
-async function generateEmbeddingsWithRetry(
-  text: string,
-  chunkSize: number,
-  chunkOverlap: number,
-  maxRetries = 5
-): Promise<Array<DocumentChunk & { embedding: number[] }>> {
-  let lastError: unknown;
-  
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await processTextWithEmbeddings(text, chunkSize, chunkOverlap);
-      
-      if (attempt > 0) {
-        logger.info("✅ Embeddings generated successfully after retry", { attempt: attempt + 1 });
-      }
-      
-      return result;
-      
-    } catch (error) {
-      lastError = error;
-      
-      // Check if it's a rate limit error
-      if (isRateLimitError(error)) {
-        if (attempt < maxRetries) {
-          const delaySeconds = getRetryAfterDelay(error, attempt);
-          logger.warn("⏸️  Rate limited by embedding provider, waiting before retry", {
-            attempt: attempt + 1,
-            maxRetries: maxRetries + 1,
-            delaySeconds: delaySeconds.toFixed(1),
-            retryIn: `${delaySeconds.toFixed(1)}s`
-          });
-          
-          await wait.for({ seconds: delaySeconds });
-          continue;
-        }
-      }
-      
-      // For other errors, retry with shorter delay
-      if (attempt < maxRetries) {
-        const delaySeconds = Math.min(Math.pow(2, attempt) * 1 + Math.random(), 30);
-        logger.warn("⚠️  Error generating embeddings, retrying", {
-          error: error instanceof Error ? error.message : String(error),
-          attempt: attempt + 1,
-          maxRetries: maxRetries + 1,
-          delaySeconds: delaySeconds.toFixed(1)
-        });
-        
-        await wait.for({ seconds: delaySeconds });
-        continue;
-      }
-      
-      // Final attempt failed
-      throw error;
-    }
-  }
-  
-  throw lastError;
-}
-
-/**
- * Extract text content based on item type
- */
-async function extractTextFromItem(item: KnowledgeBaseItem): Promise<string> {
-  logger.info("📄 Extracting text content", { type: item.type });
-  
-  if (item.type === "url" && item.url) {
-    return await fetchTextFromURL(item.url);
-  } 
-  
-  if (item.type === "text" && item.text_content) {
-    const sizeKB = (item.text_content.length / 1024).toFixed(2);
-    logger.info("✅ Text content extracted", { sizeKB: `${sizeKB} KB` });
-    return item.text_content;
-  } 
-  
-  if (item.type === "file" && item.file_location) {
-    throw new Error("File processing is not yet implemented");
-  }
-  
-  throw new Error(`Unsupported item type: ${item.type}`);
-}
-
-/**
- * Store document chunks with embeddings in database
- * Processes in batches to avoid memory issues with large datasets
- */
-async function storeDocumentChunks(
-  supabase: SupabaseClient,
-  item: KnowledgeBaseItem,
-  chunks: Array<DocumentChunk & { embedding: number[] }>
-): Promise<number> {
-  if (chunks.length === 0) {
-    return 0;
-  }
-
-  logger.info("💾 Storing chunks in database", { totalChunks: chunks.length });
-
-  const BATCH_SIZE = 50; // Store 50 chunks at a time to avoid memory spikes
-  let storedCount = 0;
-
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE);
-    
-    const documents = batch.map((chunk) => ({
-      knowledge_base_id: item.knowledge_base_id,
-      knowledge_base_item_id: item.id,
-      content: chunk.content,
-      embedding: JSON.stringify(chunk.embedding),
-      chunk_index: chunk.chunkIndex,
-      chunk_total: chunk.chunkTotal,
-      token_count: chunk.tokenCount,
-      metadata: {},
-    }));
-
-    const { error: insertError } = await supabase
-      .from("knowledge_base_documents")
-      .insert(documents);
-
-    if (insertError) {
-      throw new Error(`Database error: ${insertError.message}`);
-    }
-
-    storedCount += documents.length;
-    logger.info(`  ↳ Stored batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}`, { 
-      stored: storedCount,
-      total: chunks.length 
-    });
-  }
-
-  logger.info("✅ All chunks stored successfully", { totalStored: storedCount });
-
-  return storedCount;
-}
-
-
-/**
  * Main task: Process a knowledge base item
  * 
  * Strategy:
@@ -448,10 +205,9 @@ export const processItem = schemaTask({
     const startTime = Date.now();
     const supabase = createSupabaseClient();
     
-    // Log machine size for debugging
     logger.info("🚀 Starting knowledge base item processing", { 
       attempt: ctx.attempt.number,
-      maxAttempts: 3,
+      maxAttempts: 5,
     });
     
     // Fetch the item
@@ -465,49 +221,35 @@ export const processItem = schemaTask({
     });
 
     try {
-      // Update status to processing
-      await updateItemStatus(supabase, item.id, "processing");
-      logger.info("🔄 Status updated to processing");
+      // Get the appropriate processor for this item type
+      const processor = PROCESSORS[item.type];
+      if (!processor) {
+        throw new Error(
+          `No processor found for item type: ${item.type}. ` +
+          `Available types: ${Object.keys(PROCESSORS).join(', ')}`
+        );
+      }
 
-      // Extract text from item
-      const text = await extractTextFromItem(item);
-      const textSizeKB = (text.length / 1024).toFixed(2);
-      logger.info("📊 Text extraction complete", { 
-        sizeKB: `${textSizeKB} KB`,
-        characters: text.length 
-      });
+      // Update status to processing (unless it's rightmove_agent which handles its own status)
+      if (item.type !== 'rightmove_agent') {
+        await updateItemStatus(supabase, item.id, "processing");
+        logger.info("🔄 Status updated to processing");
+      }
 
-      // Generate embeddings with built-in retry logic
-      logger.info("🧮 Generating embeddings with retry support...");
-      const chunksWithEmbeddings = await generateEmbeddingsWithRetry(
-        text,
-        item.chunk_size || 512,
-        item.chunk_overlap || 50
-      );
-      
-      const avgTokens = chunksWithEmbeddings.length > 0
-        ? Math.round(chunksWithEmbeddings.reduce((sum, c) => sum + (c.tokenCount || 0), 0) / chunksWithEmbeddings.length)
-        : 0;
-      
-      logger.info("✅ Embeddings generated", { 
-        totalChunks: chunksWithEmbeddings.length,
-        avgTokensPerChunk: avgTokens,
-      });
+      // Route to type-specific processor
+      logger.info(`  ↳ Routing to ${item.type} processor`);
+      const result = await processor(supabase, item);
 
-      // Store chunks in database (batched internally)
-      const chunksCreated = await storeDocumentChunks(
-        supabase,
-        item,
-        chunksWithEmbeddings
-      );
-
-      // Update status to indexed
-      await updateItemStatus(supabase, item.id, "indexed");
+      // Update status to indexed (unless it's rightmove_agent which handles its own status)
+      if (item.type !== 'rightmove_agent') {
+        await updateItemStatus(supabase, item.id, "indexed");
+      }
       
       const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
       logger.info("🎉 Processing completed successfully", { 
         itemId: item.id,
-        chunksCreated,
+        type: item.type,
+        chunksCreated: result.chunksCreated,
         durationSec: `${durationSec}s`,
       });
 
@@ -515,7 +257,7 @@ export const processItem = schemaTask({
         success: true,
         itemId: item.id,
         type: item.type,
-        chunksCreated,
+        chunksCreated: result.chunksCreated,
         durationSec: parseFloat(durationSec),
       };
 
