@@ -20,17 +20,8 @@ export async function PATCH(
 
     const supabase = await createServiceClient()
 
-    // Verify the organization slug matches the user's organization
-    const { data: org } = await supabase
-      .from('organisations')
-      .select('id')
-      .eq('slug', slug)
-      .eq('id', organizationId)
-      .single()
 
-    if (!org) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-    }
+    
 
     // Verify the knowledge base belongs to the organization
     const { data: kb } = await supabase
@@ -55,6 +46,15 @@ export async function PATCH(
 
     if (body.sync_error !== undefined) {
       updates.sync_error = body.sync_error
+    }
+
+    // Allow updating name and metadata (for rightmove_agent edits)
+    if (body.name) {
+      updates.name = body.name
+    }
+
+    if (body.metadata) {
+      updates.metadata = body.metadata
     }
 
     const { data: item, error: updateError } = await supabase

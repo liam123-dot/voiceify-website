@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { IconLoader2, IconTrash, IconFile, IconLink, IconFileText, IconDatabase, IconExternalLink, IconRefresh, IconChevronLeft, IconChevronRight, IconChevronDown, IconBuilding, IconHome } from "@tabler/icons-react"
+import { IconLoader2, IconTrash, IconFile, IconLink, IconFileText, IconDatabase, IconExternalLink, IconRefresh, IconChevronLeft, IconChevronRight, IconChevronDown, IconBuilding, IconHome, IconSparkles } from "@tabler/icons-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
@@ -69,6 +69,8 @@ interface KnowledgeBaseItem {
   created_at: string
   updated_at: string
   sync_error?: string | null
+  extracted_keywords?: string[] | null
+  keyword_extraction_status?: 'pending' | 'processing' | 'completed' | 'failed' | null
 }
 
 interface KnowledgeBaseItemWithChildren extends KnowledgeBaseItem {
@@ -98,6 +100,8 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [showChildItems, setShowChildItems] = useState<boolean>(true)
   const [resyncingItems, setResyncingItems] = useState<Set<string>>(new Set())
+  const [editDialogOpen, setEditDialogOpen] = useState<boolean>(false)
+  const [editingItem, setEditingItem] = useState<KnowledgeBaseItem | null>(null)
   const queryClient = useQueryClient()
 
   const toggleExpanded = (itemId: string) => {
@@ -110,6 +114,16 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
       }
       return next
     })
+  }
+
+  const handleEditItem = (item: KnowledgeBaseItem) => {
+    setEditingItem(item)
+    setEditDialogOpen(true)
+  }
+
+  const handleEditDialogClose = () => {
+    setEditDialogOpen(false)
+    setEditingItem(null)
   }
 
   // Fetch knowledge base details
@@ -140,8 +154,11 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
       const hasProcessingItems = items.some(
         item => item.status === 'pending' || item.status === 'processing'
       )
-      // Refetch every 5 seconds if there are processing items
-      return hasProcessingItems ? 5000 : false
+      const hasProcessingKeywords = items.some(
+        item => item.keyword_extraction_status === 'pending' || item.keyword_extraction_status === 'processing'
+      )
+      // Refetch every 5 seconds if there are processing items or keyword extractions
+      return (hasProcessingItems || hasProcessingKeywords) ? 5000 : false
     },
   })
 
@@ -350,6 +367,29 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
     },
   })
 
+  // Extract keywords mutation
+  const extractKeywordsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(
+        `/api/${slug}/knowledge-bases/${knowledgeBaseId}/extract-keywords`,
+        { method: 'POST' }
+      )
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to extract keywords')
+      }
+      return response.json()
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || `Queued ${data.queued} item(s) for keyword extraction`)
+      queryClient.invalidateQueries({ queryKey: ['knowledge-base-items', slug, knowledgeBaseId] })
+    },
+    onError: (error) => {
+      console.error('Error extracting keywords:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to extract keywords')
+    },
+  })
+
   // Organize items into parent-child hierarchy
   const organizedItems = useMemo(() => {
     const parents = items.filter((i: KnowledgeBaseItem) => !i.parent_item_id)
@@ -487,6 +527,24 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
     return items.filter((item: KnowledgeBaseItem) => item.status === 'failed').length
   }, [items])
 
+  // Count items pending keyword extraction
+  // Exclude rightmove_agent items as they have no direct content
+  const pendingKeywordCount = useMemo(() => {
+    return items.filter((item: KnowledgeBaseItem) => 
+      item.type !== 'rightmove_agent' &&
+      (!item.keyword_extraction_status || item.keyword_extraction_status === 'failed')
+    ).length
+  }, [items])
+
+  // Check if any items are processing keyword extraction
+  const isAnyProcessingKeywords = useMemo(() => {
+    return items.some((item: KnowledgeBaseItem) => 
+      item.type !== 'rightmove_agent' &&
+      (item.keyword_extraction_status === 'pending' || 
+       item.keyword_extraction_status === 'processing')
+    )
+  }, [items])
+
   // Check if all items on current page are selected
   const allSelected = paginatedItems.length > 0 && selectedIds.size === paginatedItems.length
   const someSelected = selectedIds.size > 0 && selectedIds.size < paginatedItems.length
@@ -589,6 +647,25 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                 >
                   <IconRefresh className="mr-2 h-4 w-4" />
                   Retry All Failed ({failedCount})
+                </Button>
+              )}
+              {(pendingKeywordCount > 0 || isAnyProcessingKeywords) && (
+                <Button
+                  variant="outline"
+                  onClick={() => extractKeywordsMutation.mutate()}
+                  disabled={extractKeywordsMutation.isPending || isAnyProcessingKeywords}
+                >
+                  {isAnyProcessingKeywords ? (
+                    <>
+                      <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Extracting...
+                    </>
+                  ) : (
+                    <>
+                      <IconSparkles className="mr-2 h-4 w-4" />
+                      Extract Keywords {pendingKeywordCount > 0 && `(${pendingKeywordCount})`}
+                    </>
+                  )}
                 </Button>
               )}
               <AddItemDialog 
@@ -787,7 +864,18 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
                                 <TooltipProvider delayDuration={300}>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className={`text-sm font-medium cursor-default ${isChild ? 'text-muted-foreground' : ''}`}>
+                                      <span 
+                                        className={`text-sm font-medium ${
+                                          item.type === 'rightmove_agent' 
+                                            ? 'cursor-pointer hover:text-primary' 
+                                            : 'cursor-default'
+                                        } ${isChild ? 'text-muted-foreground' : ''}`}
+                                        onClick={() => {
+                                          if (item.type === 'rightmove_agent') {
+                                            handleEditItem(item)
+                                          }
+                                        }}
+                                      >
                                         {displayName}
                                       </span>
                                     </TooltipTrigger>
@@ -999,6 +1087,25 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Dialog for rightmove_agent items */}
+      <AddItemDialog
+        slug={slug}
+        knowledgeBaseId={knowledgeBaseId}
+        onItemAdded={() => {
+          handleItemAdded()
+          handleEditDialogClose()
+        }}
+        editItem={editingItem}
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleEditDialogClose()
+          } else {
+            setEditDialogOpen(open)
+          }
+        }}
+      />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SiteMapSelector } from "./SiteMapSelector"
 
@@ -62,19 +63,50 @@ const rightmoveAgentSchema = z.object({
   path: ["rentUrl"],
 })
 
+interface KnowledgeBaseItem {
+  id: string
+  name: string
+  type: string
+  status: string
+  url?: string
+  text_content?: string
+  file_location?: string
+  parent_item_id?: string | null
+  metadata?: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  sync_error?: string | null
+}
+
 interface AddItemDialogProps {
   slug: string
   knowledgeBaseId: string
   onItemAdded: () => void
+  editItem?: KnowledgeBaseItem | null
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDialogProps) {
-  const [open, setOpen] = useState(false)
+export function AddItemDialog({ 
+  slug, 
+  knowledgeBaseId, 
+  onItemAdded,
+  editItem = null,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange
+}: AddItemDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isLoadingSiteMap, setIsLoadingSiteMap] = useState(false)
   const [scrapedUrls, setScrapedUrls] = useState<string[]>([])
   const [selectedUrls, setSelectedUrls] = useState<string[]>([])
+
+  // Use controlled or uncontrolled state for dialog open
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen
+  const setOpen = controlledOnOpenChange || setInternalOpen
+
+  const isEditMode = !!editItem
 
   const urlForm = useForm({
     resolver: zodResolver(urlSchema),
@@ -101,6 +133,19 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
   type FileFormValues = z.infer<typeof fileSchema>
   type RightmoveAgentFormValues = z.infer<typeof rightmoveAgentSchema>
 
+  // Populate form when editItem changes
+  React.useEffect(() => {
+    if (editItem && editItem.type === 'rightmove_agent') {
+      const metadata = editItem.metadata as { rentUrl?: string; saleUrl?: string; syncSchedule?: 'daily' | 'weekly' } | undefined
+      rightmoveAgentForm.reset({
+        name: editItem.name,
+        rentUrl: metadata?.rentUrl || "",
+        saleUrl: metadata?.saleUrl || "",
+        syncSchedule: metadata?.syncSchedule || "daily",
+      })
+    }
+  }, [editItem, rightmoveAgentForm])
+
   const handleSubmit = async (
     type: 'url' | 'text' | 'file' | 'rightmove_agent', 
     values: UrlFormValues | TextFormValues | FileFormValues | RightmoveAgentFormValues
@@ -117,27 +162,33 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
         if (values.rentUrl) metadata.rentUrl = values.rentUrl
         if (values.saleUrl) metadata.saleUrl = values.saleUrl
 
-        const response = await fetch(
-          `/api/${slug}/knowledge-bases/${knowledgeBaseId}/items`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              type: 'rightmove_agent',
-              name: values.name,
-              metadata,
-            }),
-          }
-        )
+        const url = isEditMode && editItem
+          ? `/api/${slug}/knowledge-bases/${knowledgeBaseId}/items/${editItem.id}`
+          : `/api/${slug}/knowledge-bases/${knowledgeBaseId}/items`
+        
+        const method = isEditMode ? 'PATCH' : 'POST'
+
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'rightmove_agent',
+            name: values.name,
+            metadata,
+          }),
+        })
 
         if (!response.ok) {
           const data = await response.json()
-          throw new Error(data.error || 'Failed to create Rightmove Agent')
+          throw new Error(data.error || `Failed to ${isEditMode ? 'update' : 'create'} Rightmove Agent`)
         }
 
-        toast.success('Rightmove Agent created successfully. Processing properties...')
+        toast.success(isEditMode 
+          ? 'Rightmove Agent updated successfully.'
+          : 'Rightmove Agent created successfully. Processing properties...'
+        )
         rightmoveAgentForm.reset()
         setOpen(false)
         onItemAdded()
@@ -314,29 +365,40 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <IconPlus className="mr-2 h-4 w-4" />
-          Add Item
-        </Button>
-      </DialogTrigger>
+      {!isEditMode && (
+        <DialogTrigger asChild>
+          <Button>
+            <IconPlus className="mr-2 h-4 w-4" />
+            Add Item
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Add Item to Knowledge Base</DialogTitle>
+          <DialogTitle>
+            {isEditMode ? 'Edit Property Agent' : 'Add Item to Knowledge Base'}
+          </DialogTitle>
           <DialogDescription>
-            Add a URL, text content, or file to your knowledge base. It will be indexed for search.
+            {isEditMode 
+              ? 'Update the configuration for this property agent.'
+              : 'Add a URL, text content, or file to your knowledge base. It will be indexed for search.'
+            }
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto -mx-6 px-6">
-        <Tabs defaultValue="website" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="website">Website</TabsTrigger>
-            <TabsTrigger value="text">Text</TabsTrigger>
-            <TabsTrigger value="file">File</TabsTrigger>
-            <TabsTrigger value="property-agent">Property Agent</TabsTrigger>
-          </TabsList>
+        <Tabs defaultValue={isEditMode ? "property-agent" : "website"} className="w-full">
+          {!isEditMode && (
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="website">Website</TabsTrigger>
+              <TabsTrigger value="text">Text</TabsTrigger>
+              <TabsTrigger value="file">File</TabsTrigger>
+              <TabsTrigger value="property-agent">Property Agent</TabsTrigger>
+            </TabsList>
+          )}
 
-          <TabsContent value="website" className="space-y-4">
+          {!isEditMode && (
+            <>
+            <TabsContent value="website" className="space-y-4">
             <Form {...urlForm}>
               <form onSubmit={urlForm.handleSubmit((v) => handleSubmit('url', v))} className="space-y-4">
                 <FormField
@@ -538,6 +600,8 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
               </form>
             </Form>
           </TabsContent>
+          </>
+          )}
 
           <TabsContent value="property-agent" className="space-y-4">
             <Alert>
@@ -614,9 +678,13 @@ export function AddItemDialog({ slug, knowledgeBaseId, onItemAdded }: AddItemDia
                     </FormItem>
                   )}
                 />
+
                 <div className="flex justify-end">
                   <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Creating Agent...' : 'Create Property Agent'}
+                    {isSubmitting 
+                      ? (isEditMode ? 'Updating Agent...' : 'Creating Agent...') 
+                      : (isEditMode ? 'Update Property Agent' : 'Create Property Agent')
+                    }
                   </Button>
                 </div>
               </form>

@@ -27,6 +27,8 @@ export interface KnowledgeBaseItem {
   metadata?: Record<string, unknown>;
   last_synced_at?: string;
   sync_error?: string;
+  extracted_keywords?: string[] | null;
+  keyword_extraction_status?: 'pending' | 'processing' | 'completed' | 'failed' | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string;
