@@ -131,7 +131,7 @@ export function CallsTable({ calls, slug, showEvents = false, showCosts = false,
 
       <CallDetailSheet
         call={selectedCall}
-        slug={slug}
+        slug={selectedCall?.organisations?.slug || slug}
         open={!!selectedCall}
         showEvents={showEvents}
         showCosts={showCosts}
