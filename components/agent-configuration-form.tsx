@@ -372,7 +372,10 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         knowledgeBase: {
           useAsTool: values.knowledgeBaseUseAsTool ?? false,
           matchCount: values.knowledgeBaseMatchCount ?? 3,
-          messaging: kbMessaging,
+          // Only include messaging if at least one option is enabled
+          ...(kbMessaging && (kbMessaging.beforeExecution || kbMessaging.duringExecution) 
+            ? { messaging: kbMessaging } 
+            : {}),
         },
         tools: [],
         settings: {

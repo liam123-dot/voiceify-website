@@ -35,25 +35,31 @@ export function ToolMessagingConfigComponent({ value, onChange }: ToolMessagingC
   }
 
   const updateBeforeExecution = (updates: Partial<NonNullable<ToolMessagingConfig['beforeExecution']>>) => {
+    const newBeforeConfig = {
+      enabled: config.beforeExecution?.enabled || false,
+      type: config.beforeExecution?.type || 'say',
+      content: config.beforeExecution?.content || '',
+      ...updates,
+    }
+    
+    // Only include beforeExecution if enabled is true
     updateConfig({
-      beforeExecution: {
-        enabled: config.beforeExecution?.enabled || false,
-        type: config.beforeExecution?.type || 'say',
-        content: config.beforeExecution?.content || '',
-        ...updates,
-      }
+      beforeExecution: newBeforeConfig.enabled ? newBeforeConfig : undefined,
     })
   }
 
   const updateDuringExecution = (updates: Partial<NonNullable<ToolMessagingConfig['duringExecution']>>) => {
+    const newDuringConfig = {
+      enabled: config.duringExecution?.enabled || false,
+      type: config.duringExecution?.type || 'say',
+      content: config.duringExecution?.content || '',
+      delay: config.duringExecution?.delay || 500,
+      ...updates,
+    }
+    
+    // Only include duringExecution if enabled is true
     updateConfig({
-      duringExecution: {
-        enabled: config.duringExecution?.enabled || false,
-        type: config.duringExecution?.type || 'say',
-        content: config.duringExecution?.content || '',
-        delay: config.duringExecution?.delay || 500,
-        ...updates,
-      }
+      duringExecution: newDuringConfig.enabled ? newDuringConfig : undefined,
     })
   }
 
