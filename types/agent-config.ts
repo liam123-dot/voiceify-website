@@ -159,6 +159,7 @@ export interface ToolMessagingConfig {
  */
 export interface KnowledgeBaseConfig {
   useAsTool?: boolean; // Default: false (pre-inject mode). When true, LLM decides when to query via tool call
+  matchCount?: number; // Number of documents to retrieve from knowledge base (default: 3, range: 1-10)
   messaging?: ToolMessagingConfig; // Optional messaging configuration (only used when useAsTool is true)
 }
 

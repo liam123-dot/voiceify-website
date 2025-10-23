@@ -101,6 +101,7 @@ const formSchema = z.object({
   
   // Knowledge base configuration
   knowledgeBaseUseAsTool: z.boolean().optional(),
+  knowledgeBaseMatchCount: z.number().min(1).max(10).optional(),
 }).superRefine((data, ctx) => {
   // Validate realtime fields when pipeline type is realtime
   if (data.pipelineType === 'realtime') {
@@ -246,6 +247,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         turnDetectorMaxEndpointingDelay: 6000,
         // Knowledge base defaults
         knowledgeBaseUseAsTool: false,
+        knowledgeBaseMatchCount: 3,
       }
     }
 
@@ -294,6 +296,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
       turnDetectorMaxEndpointingDelay: initialConfig.turnDetection?.turnDetectorOptions?.maxEndpointingDelay ?? 6000,
       // Knowledge base configuration
       knowledgeBaseUseAsTool: initialConfig.knowledgeBase?.useAsTool ?? false,
+      knowledgeBaseMatchCount: initialConfig.knowledgeBase?.matchCount ?? 3,
     }
   }
 
@@ -368,6 +371,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         },
         knowledgeBase: {
           useAsTool: values.knowledgeBaseUseAsTool ?? false,
+          matchCount: values.knowledgeBaseMatchCount ?? 3,
           messaging: kbMessaging,
         },
         tools: [],
@@ -435,6 +439,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   const vadPrefixPaddingDuration = form.watch('vadPrefixPaddingDuration')
   const turnDetectorMinEndpointingDelay = form.watch('turnDetectorMinEndpointingDelay')
   const turnDetectorMaxEndpointingDelay = form.watch('turnDetectorMaxEndpointingDelay')
+  const knowledgeBaseMatchCount = form.watch('knowledgeBaseMatchCount')
 
   // Fetch all available voices from ElevenLabs
   const fetchVoices = async () => {
@@ -1691,6 +1696,36 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Match Count Configuration */}
+                <FormField
+                  control={form.control}
+                  name="knowledgeBaseMatchCount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Number of Documents to Retrieve</FormLabel>
+                        <span className="text-sm font-mono text-muted-foreground">
+                          {knowledgeBaseMatchCount ?? 3}
+                        </span>
+                      </div>
+                      <FormControl>
+                        <Slider
+                          min={1}
+                          max={10}
+                          step={1}
+                          value={[field.value ?? 3]}
+                          onValueChange={(value) => field.onChange(value[0])}
+                          className="py-4"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Maximum number of relevant documents to retrieve from the knowledge base (1-10)
+                      </FormDescription>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
