@@ -46,6 +46,7 @@ export interface STTConfig {
   model: string; // LiveKit format: e.g., "deepgram/nova-2-phonecall", "assemblyai/universal-streaming"
   inferenceType?: 'livekit' | 'direct'; // Whether to use LiveKit Inference or direct plugin (default: 'livekit')
   language?: string; // Language code (e.g., "en", "es", "fr")
+  keywords?: string[]; // Array of keywords for improved transcription accuracy
   apiKey?: string; // Optional custom API key
 }
 

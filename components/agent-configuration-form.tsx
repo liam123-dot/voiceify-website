@@ -37,6 +37,7 @@ import { toast } from 'sonner'
 import { Loader2, Save, Play, Pause, ChevronDown } from 'lucide-react'
 import type { AgentConfiguration, ToolMessagingConfig } from '@/types/agent-config'
 import { ToolMessagingConfigComponent } from '@/components/tools/tool-messaging-config'
+import { KeywordsDialog } from '@/components/agent-configuration-form-keywords-dialog'
 
 // Voice interface
 interface Voice {
@@ -199,6 +200,12 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   const [kbMessaging, setKbMessaging] = useState<ToolMessagingConfig>(
     initialConfig?.knowledgeBase?.messaging || {}
   )
+  
+  // Keywords management state
+  const [keywords, setKeywords] = useState<string[]>(
+    initialConfig?.pipeline?.stt?.keywords || []
+  )
+  const [keywordsDialogOpen, setKeywordsDialogOpen] = useState(false)
 
   // Extract values from initial config with proper defaults
   const getInitialValues = (): FormValues => {
@@ -322,6 +329,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
               // AssemblyAI only supports LiveKit Inference, Deepgram Nova-3 supports both
               inferenceType: values.sttModel?.startsWith('assemblyai/') ? 'livekit' : (values.sttInferenceType || 'livekit'),
               language: 'en',
+              keywords: keywords.length > 0 ? keywords : undefined,
             },
             llm: {
               provider: (values.llmModel?.split('/')[0] || 'openai') as 'openai' | 'azure' | 'google' | 'baseten' | 'groq' | 'cerebras',
@@ -557,6 +565,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   }, [currentAudio])
 
   return (
+    <>
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Debug Error Display */}
@@ -912,6 +921,24 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                         </FormItem>
                       )}
                     />
+                  )}
+
+                  {/* Keywords management - only for Deepgram and AssemblyAI */}
+                  {(sttModel?.startsWith('deepgram/') || sttModel?.startsWith('assemblyai/')) && (
+                    <div className="space-y-2">
+                      <FormLabel>Keywords</FormLabel>
+                      <FormDescription>
+                        Add domain-specific keywords to improve transcription accuracy
+                      </FormDescription>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setKeywordsDialogOpen(true)}
+                        className="w-full"
+                      >
+                        Manage Keywords ({keywords?.length || 0})
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -1708,6 +1735,17 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         </div>
       </form>
     </Form>
+
+    {/* Keywords Dialog */}
+    <KeywordsDialog
+      open={keywordsDialogOpen}
+      onOpenChange={setKeywordsDialogOpen}
+      agentId={agentId}
+      organizationId={slug}
+      currentKeywords={keywords}
+      onKeywordsUpdated={setKeywords}
+    />
+  </>
   )
 }
 
