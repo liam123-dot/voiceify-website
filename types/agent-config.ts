@@ -137,10 +137,28 @@ export interface AgentTool {
 }
 
 /**
+ * Tool messaging configuration (imported from tools.ts for consistency)
+ */
+export interface ToolMessagingConfig {
+  beforeExecution?: {
+    enabled: boolean;
+    type: 'say' | 'generate';
+    content: string; // text for 'say', instructions for 'generate'
+  };
+  duringExecution?: {
+    enabled: boolean;
+    type: 'say' | 'generate';
+    content: string; // text for 'say', instructions for 'generate'
+    delay?: number; // milliseconds, default 500
+  };
+}
+
+/**
  * Knowledge base configuration
  */
 export interface KnowledgeBaseConfig {
   useAsTool?: boolean; // Default: false (pre-inject mode). When true, LLM decides when to query via tool call
+  messaging?: ToolMessagingConfig; // Optional messaging configuration (only used when useAsTool is true)
 }
 
 /**

@@ -35,7 +35,8 @@ import {
 } from '@/components/ui/collapsible'
 import { toast } from 'sonner'
 import { Loader2, Save, Play, Pause, ChevronDown } from 'lucide-react'
-import type { AgentConfiguration } from '@/types/agent-config'
+import type { AgentConfiguration, ToolMessagingConfig } from '@/types/agent-config'
+import { ToolMessagingConfigComponent } from '@/components/tools/tool-messaging-config'
 
 // Voice interface
 interface Voice {
@@ -193,6 +194,11 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   const [selectedAccent, setSelectedAccent] = useState<string>('british')
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all')
   const [isVoiceListOpen, setIsVoiceListOpen] = useState(false)
+  
+  // Knowledge base messaging state
+  const [kbMessaging, setKbMessaging] = useState<ToolMessagingConfig>(
+    initialConfig?.knowledgeBase?.messaging || {}
+  )
 
   // Extract values from initial config with proper defaults
   const getInitialValues = (): FormValues => {
@@ -354,6 +360,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         },
         knowledgeBase: {
           useAsTool: values.knowledgeBaseUseAsTool ?? false,
+          messaging: kbMessaging,
         },
         tools: [],
         settings: {
@@ -1660,6 +1667,16 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                     </FormItem>
                   )}
                 />
+                
+                {/* Messaging configuration - only show when using KB as tool */}
+                {form.watch('knowledgeBaseUseAsTool') && (
+                  <div className="pt-4">
+                    <ToolMessagingConfigComponent
+                      value={kbMessaging}
+                      onChange={setKbMessaging}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </>

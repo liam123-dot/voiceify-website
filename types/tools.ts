@@ -26,6 +26,25 @@ export type ParameterSource =
       }
     }
 
+// ==================== Tool Messaging Configuration ====================
+
+/**
+ * Configuration for tool execution messaging (status updates)
+ */
+export interface ToolMessagingConfig {
+  beforeExecution?: {
+    enabled: boolean
+    type: 'say' | 'generate'
+    content: string // text for 'say', instructions for 'generate'
+  }
+  duringExecution?: {
+    enabled: boolean
+    type: 'say' | 'generate'
+    content: string // text for 'say', instructions for 'generate'
+    delay?: number // milliseconds, default 500
+  }
+}
+
 // ==================== Base Tool Configuration ====================
 
 /**
@@ -37,6 +56,7 @@ export interface BaseToolConfig {
   description: string
   name?: string // Optional - will be generated from label if not provided
   async?: boolean // If true, agent won't wait for response
+  messaging?: ToolMessagingConfig // Optional messaging configuration
 }
 
 // ==================== SMS Tool Configuration ====================
