@@ -34,6 +34,7 @@ import {
 import { calculateCallCost, formatCurrency, extractConfigDetails, REALTIME_MODEL_PRICING } from '@/lib/pricing'
 import { getLLMModel, getSTTModel, getTTSModel } from '@/lib/models'
 import { AudioEventTimeline } from '@/components/audio-event-timeline'
+import { CallEventsTab } from '@/components/call-events-tab'
 
 interface AgentEvent {
   id: string
@@ -198,12 +199,17 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
   const [loadingLatencyStats, setLoadingLatencyStats] = useState(false)
   const [latencyStatsError, setLatencyStatsError] = useState<string | null>(null)
 
-  // Fetch agent events when call changes
+  // Fetch agent events when call changes (only needed for timeline and latency stats)
   useEffect(() => {
     if (!call?.id) {
       setEvents([])
       setLatencyStats(null)
       setLatencyStatsError(null)
+      return
+    }
+
+    // Only fetch if we need events for timeline or latency
+    if (!showTimeline && !showLatency) {
       return
     }
 
@@ -239,7 +245,7 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
     }
 
     fetchEvents()
-  }, [call?.id, slug])
+  }, [call?.id, slug, showTimeline, showLatency])
 
   // Function to fetch latency stats on demand
   const fetchLatencyStats = async () => {
@@ -580,325 +586,7 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
 
           {/* Events Timeline Tab */}
           <TabsContent value="events" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <ActivityIcon className="size-4" />
-                  Event Timeline
-                </CardTitle>
-                <CardDescription>
-                  Chronological record of call events
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingEvents ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Loading events...
-                  </div>
-                ) : events.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No events recorded for this call
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                    {events.filter(event => {
-                      // Check if this is a total_latency metrics event
-                      const metricsData = event.data as { metricType?: string }
-                      const isTotalLatencyEvent = metricsData.metricType === 'total_latency'
-                      
-                      // Only show these specific event types
-                      const allowedTypes: CallEventType[] = [
-                        'call_incoming',
-                        'routed_to_agent',
-                        'team_no_answer_fallback',
-                        'transferred_to_team',
-                        'room_connected',
-                        'conversation_item_added',
-                        'function_tools_executed',
-                        'knowledge_retrieved',
-                        'knowledge_retrieved_with_speech',
-                        'total_latency'
-                      ]
-                      
-                      if (!allowedTypes.includes(event.event_type) && !isTotalLatencyEvent) {
-                        return false
-                      }
-                      
-                      // Filter out query_knowledge tool calls (already shown in knowledge_retrieved)
-                      if (event.event_type === 'function_tools_executed') {
-                        const toolData = event.data as { function_calls?: Array<{ name: string }> }
-                        const functionCalls = toolData.function_calls
-                        if (functionCalls && functionCalls.every(call => call.name === 'query_knowledge')) {
-                          return false
-                        }
-                      }
-                      
-                      return true
-                    }).map((event, index, filteredEvents) => {
-                      const eventTime = new Date(event.time)
-                      const isLastEvent = index === filteredEvents.length - 1
-                      
-                      // Calculate time delta from previous event
-                      let timeDelta: string | null = null
-                      if (index > 0) {
-                        const previousEventTime = new Date(filteredEvents[index - 1].time)
-                        const deltaMs = eventTime.getTime() - previousEventTime.getTime()
-                        timeDelta = formatTimeDelta(deltaMs)
-                      }
-                      
-                      return (
-                        <div key={event.id} className="relative flex gap-3">
-                          {/* Timeline line */}
-                          {!isLastEvent && (
-                            <div className="absolute left-[11px] top-6 bottom-0 w-px bg-border" />
-                          )}
-                          
-                          {/* Icon */}
-                          <div className="relative flex-shrink-0 mt-1">
-                            <div className="flex items-center justify-center size-6 rounded-full bg-primary/10 text-primary">
-                              {(() => {
-                                const metricsData = event.data as { metricType?: string }
-                                if (metricsData.metricType === 'total_latency') {
-                                  return <TimerIcon className="size-4" />
-                                }
-                                return getEventIcon(event.event_type)
-                              })()}
-                            </div>
-                          </div>
-                          
-                          {/* Content */}
-                          <div className="flex-1 pb-4">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1">
-                                <div className="font-medium text-sm">
-                                  {(() => {
-                                    const metricsData = event.data as { metricType?: string }
-                                    if (metricsData.metricType === 'total_latency') {
-                                      return 'Response Latency'
-                                    }
-                                    return getEventLabel(event.event_type)
-                                  })()}
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                                  <span>{format(eventTime, 'HH:mm:ss.SSS')}</span>
-                                  {timeDelta && (
-                                    <>
-                                      <span>•</span>
-                                      <span className="text-primary font-medium">+{timeDelta}</span>
-                                    </>
-                                  )}
-                                </div>
-                                
-                                {/* Event-specific details */}
-                                {event.event_type === 'conversation_item_added' && (() => {
-                                  const itemData = event.data as { item?: { role?: string; content?: string[] }; textContent?: string; role?: string }
-                                  const role = itemData.item?.role || itemData.role
-                                  const content = itemData.item?.content?.[0] || itemData.textContent
-                                  if (content) {
-                                    return (
-                                      <div className="mt-2 text-sm bg-muted/50 p-2 rounded text-muted-foreground">
-                                        <span className="font-medium capitalize">{role}:</span> {content.substring(0, 100)}{content.length > 100 ? '...' : ''}
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {event.event_type === 'user_input_transcribed' && (() => {
-                                  const transcriptData = event.data as { transcript?: string; data?: { transcript?: string } }
-                                  const transcript = transcriptData.data?.transcript || transcriptData.transcript
-                                  if (transcript) {
-                                    return (
-                                      <div className="mt-2 text-sm bg-muted/50 p-2 rounded text-muted-foreground">
-                                        &quot;{transcript}&quot;
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {event.event_type === 'function_tools_executed' && (() => {
-                                  const toolData = event.data as { functionCallsCount?: number }
-                                  const count = toolData.functionCallsCount || 0
-                                  return (
-                                    <div className="mt-2 text-sm text-muted-foreground">
-                                      {count} tool{count !== 1 ? 's' : ''} executed
-                                    </div>
-                                  )
-                                })()}
-                                
-                                {event.event_type === 'transferred_to_team' && (() => {
-                                  const transferData = event.data as { transferNumber?: string }
-                                  if (transferData.transferNumber) {
-                                    return (
-                                      <div className="mt-2 text-sm text-muted-foreground">
-                                        To: {transferData.transferNumber}
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {event.event_type === 'agent_state_changed' && (() => {
-                                  const stateData = event.data as { oldState?: string; newState?: string; data?: { old_state?: string; new_state?: string } }
-                                  const oldState = stateData.data?.old_state || stateData.oldState
-                                  const newState = stateData.data?.new_state || stateData.newState
-                                  if (oldState && newState) {
-                                    return (
-                                      <div className="mt-2 text-sm">
-                                        <span className="text-muted-foreground">{oldState}</span>
-                                        <span className="mx-2">→</span>
-                                        <span className="font-medium">{newState}</span>
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {event.event_type === 'user_state_changed' && (() => {
-                                  const stateData = event.data as { oldState?: string; newState?: string; data?: { old_state?: string; new_state?: string } }
-                                  const oldState = stateData.data?.old_state || stateData.oldState
-                                  const newState = stateData.data?.new_state || stateData.newState
-                                  if (oldState && newState) {
-                                    return (
-                                      <div className="mt-2 text-sm">
-                                        <span className="text-muted-foreground">{oldState}</span>
-                                        <span className="mx-2">→</span>
-                                        <span className="font-medium">{newState}</span>
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {event.event_type === 'speech_created' && (() => {
-                                  const speechData = event.data as { source?: string; userInitiated?: boolean; data?: { source?: string; user_initiated?: boolean } }
-                                  const source = speechData.data?.source || speechData.source
-                                  const userInitiated = speechData.data?.user_initiated ?? speechData.userInitiated
-                                  if (source) {
-                                    return (
-                                      <div className="mt-2 text-sm text-muted-foreground">
-                                        Source: {source} {userInitiated !== undefined && `• ${userInitiated ? 'User initiated' : 'Auto-generated'}`}
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {(event.event_type === 'knowledge_retrieved' || event.event_type === 'knowledge_retrieved_with_speech') && (() => {
-                                  const knowledgeData = event.data as { data?: { query?: string; latency_ms?: number; context_length?: number; retrieved_context?: string; speechId?: string }; query?: string; latency_ms?: number; context_length?: number; retrieved_context?: string; speechId?: string }
-                                  // Handle both nested data structure and flat structure
-                                  const data = knowledgeData.data || knowledgeData
-                                  if (data && (data.query || data.retrieved_context)) {
-                                    return (
-                                      <div className="mt-2 space-y-1.5">
-                                        {data.query && (
-                                          <div className="text-sm">
-                                            <span className="text-muted-foreground">Query:</span> <span className="font-medium">&quot;{data.query}&quot;</span>
-                                          </div>
-                                        )}
-                                        <div className="flex gap-3 text-xs text-muted-foreground">
-                                          {data.latency_ms && (
-                                            <span>Latency: {data.latency_ms}ms</span>
-                                          )}
-                                          {data.context_length && (
-                                            <span>Context: {data.context_length} chars</span>
-                                          )}
-                                          {data.speechId && (
-                                            <span className="font-mono">Speech: {data.speechId.substring(0, 12)}...</span>
-                                          )}
-                                        </div>
-                                        {data.retrieved_context && (
-                                          <div className="text-xs bg-muted/50 p-2 rounded text-muted-foreground max-h-20 overflow-y-auto">
-                                            {data.retrieved_context.substring(0, 200)}{data.retrieved_context.length > 200 ? '...' : ''}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {(() => {
-                                  const metricsData = event.data as { totalLatency?: number; llmTtft?: number; ttsTtfb?: number; eouDelay?: number; metricType?: string; speechId?: string }
-                                  if (metricsData.metricType === 'total_latency' && metricsData.totalLatency !== undefined) {
-                                    return (
-                                      <div className="mt-2 space-y-1.5">
-                                        <div className="text-sm">
-                                          <span className="text-muted-foreground">Total Latency:</span> <span className="font-semibold text-primary">{(metricsData.totalLatency * 1000).toFixed(0)}ms</span>
-                                        </div>
-                                        <div className="flex gap-3 text-xs text-muted-foreground">
-                                          {metricsData.llmTtft !== undefined && (
-                                            <span>LLM: {(metricsData.llmTtft * 1000).toFixed(0)}ms</span>
-                                          )}
-                                          {metricsData.ttsTtfb !== undefined && (
-                                            <span>TTS: {(metricsData.ttsTtfb * 1000).toFixed(0)}ms</span>
-                                          )}
-                                          {metricsData.eouDelay !== undefined && (
-                                            <span>EOU: {(metricsData.eouDelay * 1000).toFixed(0)}ms</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {event.event_type === 'transcript' && (() => {
-                                  const transcriptData = event.data as { data?: { items?: Array<{ role: string; content: string }> } }
-                                  const items = transcriptData.data?.items
-                                  if (items && items.length > 0) {
-                                    return (
-                                      <div className="mt-2 text-sm text-muted-foreground">
-                                        {items.length} conversation item{items.length !== 1 ? 's' : ''} saved
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                                
-                                {event.event_type === 'session_complete' && (() => {
-                                  const sessionData = event.data as { data?: { usage?: { llmPromptTokens?: number; llmCompletionTokens?: number; ttsCharactersCount?: number; sttAudioDuration?: number }; durationMs?: number } }
-                                  const data = sessionData.data
-                                  if (data) {
-                                    return (
-                                      <div className="mt-2 space-y-1">
-                                        {data.durationMs && (
-                                          <div className="text-sm text-muted-foreground">
-                                            Duration: {formatTimeDelta(data.durationMs)}
-                                          </div>
-                                        )}
-                                        {data.usage && (
-                                          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                                            {data.usage.llmPromptTokens !== undefined && (
-                                              <span>Prompt: {data.usage.llmPromptTokens.toLocaleString()} tokens</span>
-                                            )}
-                                            {data.usage.llmCompletionTokens !== undefined && (
-                                              <span>Completion: {data.usage.llmCompletionTokens.toLocaleString()} tokens</span>
-                                            )}
-                                            {data.usage.ttsCharactersCount !== undefined && (
-                                              <span>TTS: {data.usage.ttsCharactersCount.toLocaleString()} chars</span>
-                                            )}
-                                            {data.usage.sttAudioDuration !== undefined && (
-                                              <span>STT: {data.usage.sttAudioDuration.toFixed(1)}s</span>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  }
-                                  return null
-                                })()}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <CallEventsTab slug={slug} callId={call.id} />
           </TabsContent>
 
           {/* Audio Timeline Tab */}
