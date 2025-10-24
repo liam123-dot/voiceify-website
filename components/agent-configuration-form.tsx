@@ -905,6 +905,28 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                     )}
                   />
 
+                  {/* Background Noise */}
+                  <FormField
+                    control={form.control}
+                    name="backgroundNoiseEnabled"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Enable Background Noise</FormLabel>
+                          <FormDescription>
+                            Adds ambient sounds like keyboard typing to simulate a realistic office environment
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
                   {/* Show inference type selector only for Deepgram Nova-3 */}
                   {sttModel === 'deepgram/nova-3' && (
                     <FormField
@@ -985,28 +1007,6 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                           LiveKit Inference provides managed, optimized model hosting. Direct uses provider APIs directly.
                         </FormDescription>
                         <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Background Noise */}
-                  <FormField
-                    control={form.control}
-                    name="backgroundNoiseEnabled"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">Enable Background Noise</FormLabel>
-                          <FormDescription>
-                            Adds ambient sounds like keyboard typing to simulate a realistic office environment
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
                       </FormItem>
                     )}
                   />
