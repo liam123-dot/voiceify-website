@@ -52,6 +52,10 @@ export interface ConversationEvent {
       ttsTtfb?: number
     }
   }
+  llm_model?: string | null
+  llm_inference_type?: string | null
+  tts_inference_type?: string | null
+  stt_inference_type?: string | null
 }
 
 export const BUCKET_SIZES: Record<string, { minutes: number; label: string }> = {
@@ -109,11 +113,19 @@ export function groupLatenciesByWindow(
   return buckets
 }
 
+export interface ConversationLatencyFilters {
+  llm_model?: string
+  llm_inference_type?: string
+  tts_inference_type?: string
+  stt_inference_type?: string
+}
+
 export function groupConversationLatenciesByWindow(
   events: ConversationEvent[],
   bucketSize: string,
   lookbackPeriod: string,
-  latencyField: 'totalLatency' | 'eouDelay' | 'llmTtft' | 'ttsTtfb'
+  latencyField: 'totalLatency' | 'eouDelay' | 'llmTtft' | 'ttsTtfb',
+  filters?: ConversationLatencyFilters
 ): Map<string, number[]> {
   const bucket = BUCKET_SIZES[bucketSize] || BUCKET_SIZES['5min']
   const period = LOOKBACK_PERIODS[lookbackPeriod] || LOOKBACK_PERIODS['12h']
@@ -124,10 +136,20 @@ export function groupConversationLatenciesByWindow(
   const buckets = new Map<string, number[]>()
   const bucketMs = bucket.minutes * 60 * 1000
   
-  // Filter events within time window
+  // Filter events within time window and by optional filters
   const filteredEvents = events.filter(event => {
     const eventTime = new Date(event.time)
-    return eventTime >= startTime && eventTime <= now
+    const timeMatch = eventTime >= startTime && eventTime <= now
+    
+    // Apply optional filters
+    if (!timeMatch) return false
+    
+    if (filters?.llm_model && event.llm_model !== filters.llm_model) return false
+    if (filters?.llm_inference_type && event.llm_inference_type !== filters.llm_inference_type) return false
+    if (filters?.tts_inference_type && event.tts_inference_type !== filters.tts_inference_type) return false
+    if (filters?.stt_inference_type && event.stt_inference_type !== filters.stt_inference_type) return false
+    
+    return true
   })
   
   // Group events into buckets

@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
 import type { Call } from '@/types/call-events'
+import type { ConversationLatencyFilters } from '@/lib/percentile-utils'
 
 interface CallWithOrg {
   id: string
@@ -65,6 +66,10 @@ interface ConversationEvent {
   }
   organization_id: string
   organization_slug: string
+  llm_model?: string | null
+  llm_inference_type?: string | null
+  tts_inference_type?: string | null
+  stt_inference_type?: string | null
 }
 
 interface ConversationLatencyResponse {
@@ -98,6 +103,7 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
   const [conversationBucketSize, setConversationBucketSize] = useState(searchParams.get('convBucketSize') || '1h')
   const [conversationLookbackPeriod, setConversationLookbackPeriod] = useState(searchParams.get('convLookbackPeriod') || '3d')
   const [selectedConversationTab, setSelectedConversationTab] = useState<'total' | 'eou' | 'llm' | 'tts'>('total')
+  const [conversationFilters, setConversationFilters] = useState<ConversationLatencyFilters>({})
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleBucketSizeChange = (size: string) => {
@@ -333,6 +339,8 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
           onBucketSizeChange={handleConversationBucketSizeChange}
           onLookbackPeriodChange={handleConversationLookbackPeriodChange}
           onTabChange={setSelectedConversationTab}
+          filters={conversationFilters}
+          onFiltersChange={setConversationFilters}
         />
       </div>
     </div>

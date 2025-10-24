@@ -11,6 +11,7 @@ interface EventFromDB {
   event_type: string
   data: Record<string, unknown>
   calls: {
+    config: Record<string, unknown>
     organisations: {
       id: string
       slug: string
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
 
     const supabase = await createServiceClient()
 
-    // Build query to fetch total_latency events with organization info
+    // Build query to fetch total_latency events with organization info and call config
     let query = supabase
       .from('agent_events')
       .select(`
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
         data,
         calls!inner (
           organization_id,
+          config,
           organisations!inner (
             id,
             slug,
@@ -85,10 +87,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch conversation latency data' }, { status: 500 })
     }
 
-    // Transform the data to include organization slug at the top level for easier grouping
+    // Transform the data to include organization slug and config info at the top level
     const transformedEvents = events?.map((event) => {
       // Type assertion for the nested structure since Supabase types can be complex
       const eventWithOrg = event as unknown as EventFromDB
+      const config = eventWithOrg.calls.config as any
+      const pipeline = config?.pipeline || {}
+      
       return {
         id: eventWithOrg.id,
         time: eventWithOrg.time,
@@ -97,6 +102,10 @@ export async function GET(request: Request) {
         data: eventWithOrg.data,
         organization_id: eventWithOrg.calls.organisations.id,
         organization_slug: eventWithOrg.calls.organisations.slug,
+        llm_model: pipeline.llm?.model || null,
+        llm_inference_type: pipeline.llm?.inferenceType || null,
+        tts_inference_type: pipeline.tts?.inferenceType || null,
+        stt_inference_type: pipeline.stt?.inferenceType || null,
       }
     }) || []
 

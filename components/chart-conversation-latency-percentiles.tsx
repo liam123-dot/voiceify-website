@@ -29,7 +29,8 @@ import {
   calculateLatencyMetrics,
   BUCKET_SIZES,
   LOOKBACK_PERIODS,
-  LatencyMetrics
+  LatencyMetrics,
+  ConversationLatencyFilters
 } from "@/lib/percentile-utils"
 
 export const description = "Conversation latency percentiles chart"
@@ -42,6 +43,8 @@ interface ChartConversationLatencyPercentilesProps {
   onBucketSizeChange: (size: string) => void
   onLookbackPeriodChange: (period: string) => void
   onTabChange: (tab: 'total' | 'eou' | 'llm' | 'tts') => void
+  filters?: ConversationLatencyFilters
+  onFiltersChange?: (filters: ConversationLatencyFilters) => void
 }
 
 type LatencyType = 'total' | 'eou' | 'llm' | 'tts'
@@ -68,14 +71,49 @@ export function ChartConversationLatencyPercentiles({
   onBucketSizeChange,
   onLookbackPeriodChange,
   onTabChange,
+  filters,
+  onFiltersChange,
 }: ChartConversationLatencyPercentilesProps) {
+  // Extract unique values for filters
+  const availableModels = React.useMemo(() => {
+    const models = new Set<string>()
+    events.forEach(event => {
+      if (event.llm_model) models.add(event.llm_model)
+    })
+    return Array.from(models).sort()
+  }, [events])
+
+  const availableLlmInferenceTypes = React.useMemo(() => {
+    const types = new Set<string>()
+    events.forEach(event => {
+      if (event.llm_inference_type) types.add(event.llm_inference_type)
+    })
+    return Array.from(types).sort()
+  }, [events])
+
+  const availableTtsInferenceTypes = React.useMemo(() => {
+    const types = new Set<string>()
+    events.forEach(event => {
+      if (event.tts_inference_type) types.add(event.tts_inference_type)
+    })
+    return Array.from(types).sort()
+  }, [events])
+
+  const availableSttInferenceTypes = React.useMemo(() => {
+    const types = new Set<string>()
+    events.forEach(event => {
+      if (event.stt_inference_type) types.add(event.stt_inference_type)
+    })
+    return Array.from(types).sort()
+  }, [events])
+
   const processChartData = React.useMemo(() => {
     const bucket = BUCKET_SIZES[bucketSize] || BUCKET_SIZES['5min']
     const period = LOOKBACK_PERIODS[lookbackPeriod] || LOOKBACK_PERIODS['12h']
     const latencyField = LATENCY_FIELD_MAP[selectedTab]
     
     // Group latencies by time buckets (returns values in milliseconds)
-    const buckets = groupConversationLatenciesByWindow(events, bucketSize, lookbackPeriod, latencyField)
+    const buckets = groupConversationLatenciesByWindow(events, bucketSize, lookbackPeriod, latencyField, filters)
     
     // Create a full range of time buckets
     const now = new Date()
@@ -126,7 +164,7 @@ export function ChartConversationLatencyPercentiles({
     }
     
     return chartData
-  }, [events, bucketSize, lookbackPeriod, selectedTab])
+  }, [events, bucketSize, lookbackPeriod, selectedTab, filters])
 
   return (
     <Card className="@container/card">
@@ -172,6 +210,83 @@ export function ChartConversationLatencyPercentiles({
               </Select>
             </div>
           </div>
+          
+          {/* Filters */}
+          {onFiltersChange && (
+            <div className="flex gap-2 flex-wrap border-t pt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">LLM Model:</span>
+                <Select 
+                  value={filters?.llm_model || 'all'} 
+                  onValueChange={(value) => onFiltersChange({ ...filters, llm_model: value === 'all' ? undefined : value })}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All models" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All models</SelectItem>
+                    {availableModels.map(model => (
+                      <SelectItem key={model} value={model}>{model}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">LLM Inference:</span>
+                <Select 
+                  value={filters?.llm_inference_type || 'all'} 
+                  onValueChange={(value) => onFiltersChange({ ...filters, llm_inference_type: value === 'all' ? undefined : value })}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {availableLlmInferenceTypes.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">TTS Inference:</span>
+                <Select 
+                  value={filters?.tts_inference_type || 'all'} 
+                  onValueChange={(value) => onFiltersChange({ ...filters, tts_inference_type: value === 'all' ? undefined : value })}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {availableTtsInferenceTypes.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">STT Inference:</span>
+                <Select 
+                  value={filters?.stt_inference_type || 'all'} 
+                  onValueChange={(value) => onFiltersChange({ ...filters, stt_inference_type: value === 'all' ? undefined : value })}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {availableSttInferenceTypes.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
