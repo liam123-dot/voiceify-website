@@ -6,10 +6,12 @@ import { IconLoader2, IconRefresh, IconSparkles, IconMapPin, IconArrowLeft } fro
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { EstateAgentEditForm } from './EstateAgentEditForm'
 import { EstateAgentPropertiesTable } from './EstateAgentPropertiesTable'
 import { EstateAgentLocationsModal } from './EstateAgentLocationsModal'
+import { CustomExtractions } from './CustomExtractions'
 import type { KnowledgeBaseItem, RightmoveAgentConfig } from '@/types/knowledge-base'
 import Link from 'next/link'
 
@@ -173,25 +175,6 @@ export function EstateAgentDetail({ slug, knowledgeBaseId, estateAgentId }: Esta
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Link href={`/${slug}/knowledge-base/${knowledgeBaseId}`}>
-              <Button variant="ghost" size="icon-sm">
-                <IconArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <h1 className="text-3xl font-bold">{estateAgent.name}</h1>
-            <Badge variant="outline" className="border-purple-500 text-purple-700">
-              Estate Agent
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {properties.length} propert{properties.length !== 1 ? 'ies' : 'y'} in knowledge base
-          </p>
-        </div>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -293,20 +276,32 @@ export function EstateAgentDetail({ slug, knowledgeBaseId, estateAgentId }: Esta
         onSuccess={handleRefetchItems}
       />
 
-      {/* Properties Table */}
+      {/* Main Content Tabs */}
       <Card>
-        <CardHeader>
-          <CardTitle>Properties</CardTitle>
-          <CardDescription>
-            All properties synced from this estate agent&apos;s Rightmove listings
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EstateAgentPropertiesTable
-            slug={slug}
-            knowledgeBaseId={knowledgeBaseId}
-            properties={properties}
-          />
+        <CardContent className="pt-6">
+          <Tabs defaultValue="properties">
+            <TabsList className="mb-6">
+              <TabsTrigger value="properties">Properties ({properties.length})</TabsTrigger>
+              <TabsTrigger value="extractions">Custom Extractions</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="properties">
+              <EstateAgentPropertiesTable
+                slug={slug}
+                knowledgeBaseId={knowledgeBaseId}
+                properties={properties}
+              />
+            </TabsContent>
+
+            <TabsContent value="extractions">
+              <CustomExtractions
+                slug={slug}
+                knowledgeBaseId={knowledgeBaseId}
+                estateAgentId={estateAgentId}
+                propertyCount={properties.length}
+              />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
