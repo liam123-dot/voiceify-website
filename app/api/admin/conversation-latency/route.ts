@@ -4,6 +4,21 @@ import { checkAdminAuth } from '@/app/(admin)/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 
+interface CallConfig {
+  pipeline?: {
+    llm?: {
+      model?: string
+      inferenceType?: string
+    }
+    tts?: {
+      inferenceType?: string
+    }
+    stt?: {
+      inferenceType?: string
+    }
+  }
+}
+
 interface EventFromDB {
   id: string
   time: string
@@ -11,19 +26,13 @@ interface EventFromDB {
   event_type: string
   data: Record<string, unknown>
   calls: {
-    config: Record<string, unknown>
+    config: CallConfig
     organisations: {
       id: string
       slug: string
       external_id: string
     }
   }
-}
-
-interface Organisation {
-  id: string
-  slug: string
-  external_id: string
 }
 
 export async function GET(request: Request) {
@@ -91,7 +100,7 @@ export async function GET(request: Request) {
     const transformedEvents = events?.map((event) => {
       // Type assertion for the nested structure since Supabase types can be complex
       const eventWithOrg = event as unknown as EventFromDB
-      const config = eventWithOrg.calls.config as any
+      const config = eventWithOrg.calls.config
       const pipeline = config?.pipeline || {}
       
       return {
