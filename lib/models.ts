@@ -74,6 +74,16 @@ export interface TTSVoice {
 export const STT_MODELS: STTModel[] = [
   // Deepgram Models
   {
+    id: 'deepgram/flux-general-en',
+    name: 'Flux General (English)',
+    provider: 'deepgram',
+    inferenceType: 'livekit',
+    pricePerHour: 0.462,
+    description: 'Recommended for realtime use',
+    features: ['High accuracy', 'Low latency', 'English optimized', 'Supports both LiveKit and Direct'],
+    recommended: true,
+  },
+  {
     id: 'deepgram/nova-3',
     name: 'Nova-3 (Monolingual)',
     provider: 'deepgram',
