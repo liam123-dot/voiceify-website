@@ -616,7 +616,8 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                         'conversation_item_added',
                         'function_tools_executed',
                         'knowledge_retrieved',
-                        'knowledge_retrieved_with_speech'
+                        'knowledge_retrieved_with_speech',
+                        'total_latency'
                       ]
                       
                       if (!allowedTypes.includes(event.event_type) && !isTotalLatencyEvent) {
