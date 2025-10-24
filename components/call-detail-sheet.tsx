@@ -601,7 +601,39 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                    {events.filter(event => event.event_type !== 'metrics_collected').map((event, index, filteredEvents) => {
+                    {events.filter(event => {
+                      // Check if this is a total_latency metrics event
+                      const metricsData = event.data as { metricType?: string }
+                      const isTotalLatencyEvent = metricsData.metricType === 'total_latency'
+                      
+                      // Only show these specific event types
+                      const allowedTypes: CallEventType[] = [
+                        'call_incoming',
+                        'routed_to_agent',
+                        'team_no_answer_fallback',
+                        'transferred_to_team',
+                        'room_connected',
+                        'conversation_item_added',
+                        'function_tools_executed',
+                        'knowledge_retrieved',
+                        'knowledge_retrieved_with_speech'
+                      ]
+                      
+                      if (!allowedTypes.includes(event.event_type) && !isTotalLatencyEvent) {
+                        return false
+                      }
+                      
+                      // Filter out query_knowledge tool calls (already shown in knowledge_retrieved)
+                      if (event.event_type === 'function_tools_executed') {
+                        const toolData = event.data as { function_calls?: Array<{ name: string }> }
+                        const functionCalls = toolData.function_calls
+                        if (functionCalls && functionCalls.every(call => call.name === 'query_knowledge')) {
+                          return false
+                        }
+                      }
+                      
+                      return true
+                    }).map((event, index, filteredEvents) => {
                       const eventTime = new Date(event.time)
                       const isLastEvent = index === filteredEvents.length - 1
                       
@@ -623,7 +655,13 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                           {/* Icon */}
                           <div className="relative flex-shrink-0 mt-1">
                             <div className="flex items-center justify-center size-6 rounded-full bg-primary/10 text-primary">
-                              {getEventIcon(event.event_type)}
+                              {(() => {
+                                const metricsData = event.data as { metricType?: string }
+                                if (metricsData.metricType === 'total_latency') {
+                                  return <TimerIcon className="size-4" />
+                                }
+                                return getEventIcon(event.event_type)
+                              })()}
                             </div>
                           </div>
                           
@@ -632,7 +670,13 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1">
                                 <div className="font-medium text-sm">
-                                  {getEventLabel(event.event_type)}
+                                  {(() => {
+                                    const metricsData = event.data as { metricType?: string }
+                                    if (metricsData.metricType === 'total_latency') {
+                                      return 'Response Latency'
+                                    }
+                                    return getEventLabel(event.event_type)
+                                  })()}
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
                                   <span>{format(eventTime, 'HH:mm:ss.SSS')}</span>
@@ -768,6 +812,31 @@ export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = f
                                             {data.retrieved_context.substring(0, 200)}{data.retrieved_context.length > 200 ? '...' : ''}
                                           </div>
                                         )}
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                                
+                                {(() => {
+                                  const metricsData = event.data as { totalLatency?: number; llmTtft?: number; ttsTtfb?: number; eouDelay?: number; metricType?: string; speechId?: string }
+                                  if (metricsData.metricType === 'total_latency' && metricsData.totalLatency !== undefined) {
+                                    return (
+                                      <div className="mt-2 space-y-1.5">
+                                        <div className="text-sm">
+                                          <span className="text-muted-foreground">Total Latency:</span> <span className="font-semibold text-primary">{(metricsData.totalLatency * 1000).toFixed(0)}ms</span>
+                                        </div>
+                                        <div className="flex gap-3 text-xs text-muted-foreground">
+                                          {metricsData.llmTtft !== undefined && (
+                                            <span>LLM: {(metricsData.llmTtft * 1000).toFixed(0)}ms</span>
+                                          )}
+                                          {metricsData.ttsTtfb !== undefined && (
+                                            <span>TTS: {(metricsData.ttsTtfb * 1000).toFixed(0)}ms</span>
+                                          )}
+                                          {metricsData.eouDelay !== undefined && (
+                                            <span>EOU: {(metricsData.eouDelay * 1000).toFixed(0)}ms</span>
+                                          )}
+                                        </div>
                                       </div>
                                     )
                                   }
