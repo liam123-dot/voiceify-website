@@ -13,8 +13,6 @@ import { Switch } from '@/components/ui/switch'
 import { SmsToolForm } from '@/components/tools/sms-tool-form'
 import { TransferCallToolForm } from '@/components/tools/transfer-call-tool-form'
 import { PipedreamActionToolForm } from '@/components/tools/pipedream-action-tool-form'
-import { ToolMessagingConfigComponent } from '@/components/tools/tool-messaging-config'
-import { ToolMessagingConfig } from '@/types/tools'
 import { Trash2 } from 'lucide-react'
 import {
   AlertDialog,
@@ -42,9 +40,6 @@ export function EditToolForm({ tool, slug }: EditToolFormProps) {
   const [label, setLabel] = useState(tool.label || '')
   const [description, setDescription] = useState(tool.description || '')
   const [async, setAsync] = useState(tool.async || false)
-  const [messaging, setMessaging] = useState<ToolMessagingConfig>(
-    (tool.config_metadata as ToolConfig)?.messaging || {}
-  )
 
   // Type-specific configuration
   const [toolConfig, setToolConfig] = useState<ToolConfig | null>(
@@ -77,13 +72,12 @@ export function EditToolForm({ tool, slug }: EditToolFormProps) {
     setIsSubmitting(true)
 
     try {
-      // Final config with updated label, description, async, and messaging
+      // Final config with updated label, description, and async
       const finalConfig: ToolConfig = {
         ...toolConfig,
         label: label.trim(),
         description: description.trim(),
         async,
-        messaging,
       }
 
       const response = await fetch(`/api/${slug}/tools/${tool.id}`, {
@@ -275,16 +269,6 @@ export function EditToolForm({ tool, slug }: EditToolFormProps) {
               />
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Messaging Configuration */}
-      <Card>
-        <CardContent className="pt-6">
-          <ToolMessagingConfigComponent
-            value={messaging}
-            onChange={setMessaging}
-          />
         </CardContent>
       </Card>
 
