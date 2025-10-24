@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -69,14 +69,7 @@ export function PermissionsTable({ organizationId, initialPermissions }: Permiss
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
-  // Load permissions from API if not provided initially
-  useEffect(() => {
-    if (!initialPermissions) {
-      loadPermissions()
-    }
-  }, [organizationId, initialPermissions])
-
-  const loadPermissions = async () => {
+  const loadPermissions = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/admin/organizations/${organizationId}/permissions`)
@@ -93,7 +86,14 @@ export function PermissionsTable({ organizationId, initialPermissions }: Permiss
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [organizationId])
+
+  // Load permissions from API if not provided initially
+  useEffect(() => {
+    if (!initialPermissions) {
+      loadPermissions()
+    }
+  }, [initialPermissions, loadPermissions])
 
   // Check if all permissions in a category are enabled
   const isCategoryFullyEnabled = (category: PermissionCategory) => {

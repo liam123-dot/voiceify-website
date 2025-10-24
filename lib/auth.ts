@@ -3,10 +3,9 @@ import { withAuth } from '@workos-inc/authkit-nextjs';
 import { WorkOS } from '@workos-inc/node';
 import { createServiceClient } from '@/lib/supabase/server';
 import { Organisation, DEFAULT_PERMISSIONS } from '@/types/organisation';
+import { checkIsAdminEmail } from '@/app/(admin)/lib/admin-auth';
 
 const workos = new WorkOS(process.env.WORKOS_API_KEY);
-
-const ALLOWED_ADMIN_EMAILS = ['liam@buchananautomations.com'];
 
 // Helper function to generate a URL-safe slug from a string
 function slugify(text: string): string {
@@ -133,7 +132,7 @@ export async function getAuthSession(requestedSlug?: string) {
   const { user, organizationId: userWorkosOrgId } = await withAuth();
 
   // Check if user is an admin
-  const isAdmin = user?.email ? ALLOWED_ADMIN_EMAILS.includes(user.email) : false;
+  const isAdmin = checkIsAdminEmail(user?.email);
 
   // Determine which organization to use (always use DB ID, not WorkOS ID)
   let effectiveOrgId: string | undefined = undefined;

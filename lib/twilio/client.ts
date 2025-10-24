@@ -93,7 +93,7 @@ export async function configureTwilioTrunkTransfers(
         priority: 1,
         weight: 1,
         enabled: true,
-        friendlyName: 'Voiceify Transfer Origination URL',
+        friendlyName: 'Clearsky AI Transfer Origination URL',
       })
       await client.trunking.v1.trunks(trunkSid).update({
         'disasterRecoveryUrl': `${process.env.NEXT_PUBLIC_APP_URL}/api/calls/incoming`,
@@ -103,7 +103,7 @@ export async function configureTwilioTrunkTransfers(
       // Create a new trunk for transfers
       console.log('Creating new Twilio trunk for transfers...');
       const newTrunk = await client.trunking.v1.trunks.create({
-        friendlyName: 'Voiceify Transfer Trunk',
+        friendlyName: 'Clearsky AI Transfer Trunk',
         transferMode: 'enable-all', // Critical: enables SIP REFER transfers
         transferCallerId: 'from-transferee',
       });

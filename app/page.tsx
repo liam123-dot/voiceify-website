@@ -7,7 +7,7 @@ export default async function Home() {
       <div className="w-full max-w-md space-y-8 text-center">
 
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight">Voiceify</h1>
+          <h1 className="text-4xl font-bold tracking-tight">Clearsky AI</h1>
           <p className="text-muted-foreground">
             Sign in or create an account to get started
           </p>

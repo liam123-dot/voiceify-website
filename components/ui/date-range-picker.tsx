@@ -260,7 +260,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
     if (isOpen) {
       openedRangeRef.current = range
     }
-  }, [isOpen])
+  }, [isOpen, range])
 
   return (
     <Popover

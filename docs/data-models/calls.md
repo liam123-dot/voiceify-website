@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `calls` table tracks all incoming calls to Voiceify agents. Each call record captures the complete lifecycle from initial connection through completion, including transcripts, usage metrics, and recordings.
+The `calls` table tracks all incoming calls to Clearsky AI agents. Each call record captures the complete lifecycle from initial connection through completion, including transcripts, usage metrics, and recordings.
 
 ## Table: `calls`
 
@@ -128,6 +128,166 @@ All events related to a call are stored in the `agent_events` table with a forei
 
 See [Agent Events documentation](./agent-events.md) for details.
 
+## Metrics Events
+
+Metrics events (`metrics_collected` and `total_latency`) are stored in the `agent_events` table with structured data for latency analysis.
+
+### Structured Metrics Types
+
+#### End-of-Utterance (EOU) Metrics
+Emitted when the user finishes speaking. Includes turn detection and transcription latency.
+
+```typescript
+{
+  metricType: 'eou',
+  endOfUtteranceDelay: number,        // Time from speech end to turn completion (seconds)
+  transcriptionDelay: number,          // Time from speech end to final transcript (seconds)
+  onUserTurnCompletedDelay: number,   // Time to execute turn completion callback (seconds)
+  speechId: string                     // Unique ID linking this turn's metrics
+}
+```
+
+#### Speech-to-Text (STT) Metrics
+Emitted after STT processes audio input.
+
+```typescript
+{
+  metricType: 'stt',
+  audioDuration: number,    // Duration of audio input (seconds)
+  duration: number,         // Processing time (seconds, 0 for streaming)
+  streamed: boolean         // True if using streaming STT
+}
+```
+
+#### Large Language Model (LLM) Metrics
+Emitted after LLM generates a completion.
+
+```typescript
+{
+  metricType: 'llm',
+  duration: number,               // Total generation time (seconds)
+  completionTokens: number,       // Tokens in completion
+  promptTokens: number,           // Tokens in prompt
+  promptCachedTokens: number,     // Cached tokens in prompt
+  ttft: number,                   // Time to first token (seconds)
+  tokensPerSecond: number,        // Token generation rate
+  speechId: string,               // Links to EOU/TTS metrics
+  totalTokens: number             // Total tokens used
+}
+```
+
+#### Text-to-Speech (TTS) Metrics
+Emitted after TTS generates audio.
+
+```typescript
+{
+  metricType: 'tts',
+  audioDuration: number,     // Duration of generated audio (seconds)
+  charactersCount: number,   // Characters in input text
+  duration: number,          // Total generation time (seconds)
+  ttfb: number,              // Time to first byte (seconds)
+  speechId: string,          // Links to EOU/LLM metrics
+  streamed: boolean          // True if using streaming TTS
+}
+```
+
+#### Voice Activity Detection (VAD) Metrics
+Emitted by the VAD model during speech detection.
+
+```typescript
+{
+  metricType: 'vad',
+  idleTime: number,                  // Time VAD was idle (seconds)
+  inferenceCount: number,            // Number of VAD inferences performed
+  inferenceDurationTotal: number,    // Total VAD inference time (seconds)
+  label: string | null               // VAD model identifier
+}
+```
+
+#### Total Latency Metrics
+Calculated when all three components (EOU, LLM, TTS) are available for a speech turn.
+
+```typescript
+{
+  metricType: 'total_latency',
+  speechId: string,       // Links to related metrics
+  totalLatency: number,   // Total user-experienced latency (seconds)
+  eouDelay: number,       // EOU delay component (seconds)
+  llmTtft: number,        // LLM TTFT component (seconds)
+  ttsTtfb: number         // TTS TTFB component (seconds)
+}
+```
+
+**Total Latency Formula:**
+```
+totalLatency = eouDelay + llmTtft + ttsTtfb
+```
+
+This represents the time from when the user stops speaking to when they start hearing the agent's response.
+
+### Speech ID Linking
+
+Each user turn generates a unique `speechId` that appears in:
+- **EOUMetrics** - When user stops speaking
+- **LLMMetrics** - When LLM processes the turn
+- **TTSMetrics** - When TTS generates the response
+- **TotalLatencyMetrics** - When all three are complete
+
+This allows tracking the complete latency chain for each conversation turn.
+
+### TTS-Aligned Transcriptions
+
+The `speech_created` event captures TTS output with word-level timestamps when available:
+
+```typescript
+{
+  type: 'speech_created',
+  text: string,
+  speechId: string,
+  words?: Array<{
+    word: string,
+    startTime: number | null,  // Time in seconds
+    endTime: number | null      // Time in seconds
+  }>
+}
+```
+
+### Call Latency Statistics
+
+When a call completes, the system automatically calculates aggregate latency statistics and stores them in a `call_latency_stats` event. This provides a comprehensive performance summary for the entire call.
+
+```typescript
+{
+  eou: {
+    min: number,
+    p50: number,
+    p95: number,
+    p99: number,
+    avg: number,
+    max: number,
+    count: number
+  } | null,
+  llm: { /* same structure */ } | null,
+  tts: { /* same structure */ } | null,
+  total: { /* same structure */ } | null
+}
+```
+
+**When Generated:**
+- Automatically created when `session_complete` event is received
+- Can be calculated on-demand via API endpoint: `/api/[slug]/calls/[callId]/latency-stats`
+- Aggregates all metrics from `metrics_collected` and `total_latency` events
+- Provides min, p50, p95, p99, avg, max, and sample count for each metric type
+
+**Use Cases:**
+- Performance monitoring and optimization
+- Identifying problematic calls
+- Understanding typical response times
+- Setting SLA thresholds
+
+**On-Demand Calculation:**
+If latency statistics were not automatically generated (e.g., for older calls), they can be calculated on demand by calling the endpoint. The statistics will be calculated from available metrics data but not saved to the database.
+
 ## Query Examples
 
 ### Find recent calls for an agent
@@ -164,6 +324,98 @@ SELECT
 FROM calls
 WHERE usage_metrics IS NOT NULL
   AND created_at > NOW() - INTERVAL '7 days';
+```
+
+### Get latency metrics for a call
+```sql
+SELECT 
+  event_type,
+  time,
+  data->>'metricType' as metric_type,
+  data->>'speechId' as speech_id,
+  -- EOU metrics
+  (data->>'endOfUtteranceDelay')::float as eou_delay,
+  -- LLM metrics
+  (data->>'ttft')::float as llm_ttft,
+  (data->>'tokensPerSecond')::float as tokens_per_sec,
+  -- TTS metrics
+  (data->>'ttfb')::float as tts_ttfb,
+  -- Total latency
+  (data->>'totalLatency')::float as total_latency
+FROM agent_events
+WHERE call_id = 'call-uuid'
+  AND event_type IN ('metrics_collected', 'total_latency')
+ORDER BY time;
+```
+
+### Find calls with high latency
+```sql
+SELECT 
+  c.id,
+  c.agent_id,
+  c.caller_phone_number,
+  ae.data->>'totalLatency' as total_latency,
+  ae.data->>'speechId' as speech_id,
+  ae.time
+FROM calls c
+JOIN agent_events ae ON c.id = ae.call_id
+WHERE ae.event_type = 'total_latency'
+  AND (ae.data->>'totalLatency')::float > 2.0  -- Latency > 2 seconds
+  AND c.created_at > NOW() - INTERVAL '24 hours'
+ORDER BY (ae.data->>'totalLatency')::float DESC;
+```
+
+### Analyze latency breakdown by component
+```sql
+SELECT 
+  data->>'speechId' as speech_id,
+  (data->>'eouDelay')::float as eou_delay,
+  (data->>'llmTtft')::float as llm_ttft,
+  (data->>'ttsTtfb')::float as tts_ttfb,
+  (data->>'totalLatency')::float as total_latency,
+  -- Calculate percentages
+  ROUND(((data->>'eouDelay')::float / (data->>'totalLatency')::float) * 100, 1) as eou_pct,
+  ROUND(((data->>'llmTtft')::float / (data->>'totalLatency')::float) * 100, 1) as llm_pct,
+  ROUND(((data->>'ttsTtfb')::float / (data->>'totalLatency')::float) * 100, 1) as tts_pct
+FROM agent_events
+WHERE call_id = 'call-uuid'
+  AND event_type = 'total_latency'
+ORDER BY time;
+```
+
+### Get latency statistics for a call
+```sql
+SELECT 
+  c.id,
+  c.caller_phone_number,
+  c.duration_seconds,
+  (ae.data->'total'->>'avg')::float as avg_total_latency,
+  (ae.data->'total'->>'p95')::float as p95_total_latency,
+  (ae.data->'total'->>'count')::int as turn_count,
+  (ae.data->'eou'->>'avg')::float as avg_eou,
+  (ae.data->'llm'->>'avg')::float as avg_llm_ttft,
+  (ae.data->'tts'->>'avg')::float as avg_tts_ttfb
+FROM calls c
+JOIN agent_events ae ON c.id = ae.call_id
+WHERE ae.event_type = 'call_latency_stats'
+  AND c.id = 'call-uuid';
+```
+
+### Find calls with high p95 latency
+```sql
+SELECT 
+  c.id,
+  c.agent_id,
+  c.caller_phone_number,
+  c.created_at,
+  (ae.data->'total'->>'p95')::float as p95_latency,
+  (ae.data->'total'->>'count')::int as turns
+FROM calls c
+JOIN agent_events ae ON c.id = ae.call_id
+WHERE ae.event_type = 'call_latency_stats'
+  AND (ae.data->'total'->>'p95')::float > 2.0
+  AND c.created_at > NOW() - INTERVAL '7 days'
+ORDER BY (ae.data->'total'->>'p95')::float DESC;
 ```
 
 ## Common Operations

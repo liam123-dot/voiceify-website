@@ -12,25 +12,29 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import type { Call, CallStatus, CallEventType } from '@/types/call-events'
-import { 
-  PhoneIcon, 
-  ClockIcon, 
-  MessageSquareIcon, 
-  CoinsIcon, 
-  DollarSignIcon, 
-  InfoIcon, 
+import type { Call, CallStatus, CallEventType, LatencyStats, CallLatencyStatsEventData } from '@/types/call-events'
+import {
+  PhoneIcon,
+  MessageSquareIcon,
+  CoinsIcon,
+  DollarSignIcon,
+  InfoIcon,
   BarChart3Icon,
   ActivityIcon,
   ArrowRightIcon,
   UserIcon,
-  BotIcon,
   ZapIcon,
   VolumeIcon,
-  HeadphonesIcon
+  HeadphonesIcon,
+  BookOpenIcon,
+  FileTextIcon,
+  CheckCircleIcon,
+  TimerIcon
 } from 'lucide-react'
 import { calculateCallCost, formatCurrency, extractConfigDetails, REALTIME_MODEL_PRICING } from '@/lib/pricing'
 import { getLLMModel, getSTTModel, getTTSModel } from '@/lib/models'
+import { AudioEventTimeline } from '@/components/audio-event-timeline'
+import { CallEventsTab } from '@/components/call-events-tab'
 
 interface AgentEvent {
   id: string
@@ -42,8 +46,13 @@ interface AgentEvent {
 
 interface CallDetailSheetProps {
   call: (Call & { agents?: { name: string }; recording_url?: string | null }) | null
+  slug: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  showEvents?: boolean
+  showCosts?: boolean
+  showTimeline?: boolean
+  showLatency?: boolean
 }
 
 function formatDuration(seconds: number | null): string {
@@ -121,7 +130,12 @@ function getEventIcon(eventType: CallEventType) {
     case 'user_state_changed':
       return <ActivityIcon className="size-4" />
     case 'session_complete':
-      return <BotIcon className="size-4" />
+      return <CheckCircleIcon className="size-4" />
+    case 'transcript':
+      return <FileTextIcon className="size-4" />
+    case 'knowledge_retrieved':
+    case 'knowledge_retrieved_with_speech':
+      return <BookOpenIcon className="size-4" />
     default:
       return <ActivityIcon className="size-4" />
   }
@@ -153,40 +167,144 @@ function getEventLabel(eventType: CallEventType): string {
       return 'Session Complete'
     case 'transcript':
       return 'Transcript Saved'
+    case 'knowledge_retrieved':
+      return 'Knowledge Retrieved'
+    case 'knowledge_retrieved_with_speech':
+      return 'Knowledge Retrieved (with Speech ID)'
+    case 'transfer_initiated':
+      return 'Transfer Initiated'
+    case 'transfer_no_answer':
+      return 'Transfer No Answer'
+    case 'transfer_failed':
+      return 'Transfer Failed'
+    case 'transfer_success':
+      return 'Transfer Success'
+    case 'transfer_reconnected':
+      return 'Transfer Reconnected'
+    case 'room_connected':
+      return 'Room Connected'
+    case 'session_start':
+      return 'Session Started'
     default:
       return eventType.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
   }
 }
 
-export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetProps) {
+export function CallDetailSheet({ call, slug, open, onOpenChange, showEvents = false, showCosts = false, showTimeline = false, showLatency = false }: CallDetailSheetProps) {
   const [events, setEvents] = useState<AgentEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null)
+  const [loadingRecording, setLoadingRecording] = useState(false)
+  const [latencyStats, setLatencyStats] = useState<CallLatencyStatsEventData | null>(null)
+  const [loadingLatencyStats, setLoadingLatencyStats] = useState(false)
+  const [latencyStatsError, setLatencyStatsError] = useState<string | null>(null)
 
-  // Fetch agent events when call changes
+  // Fetch agent events when call changes (only needed for timeline and latency stats)
   useEffect(() => {
     if (!call?.id) {
       setEvents([])
+      setLatencyStats(null)
+      setLatencyStatsError(null)
+      return
+    }
+
+    // Only fetch if we need events for timeline or latency
+    if (!showTimeline && !showLatency) {
       return
     }
 
     const fetchEvents = async () => {
       setLoadingEvents(true)
       try {
-        const response = await fetch(`/api/calls/${call.id}/events`)
+        const response = await fetch(`/api/${slug}/calls/${call.id}/events`)
         if (response.ok) {
           const data = await response.json()
-          setEvents(data.events || [])
+          const allEvents = data.events || []
+          setEvents(allEvents)
+          
+          // Extract latency stats if available
+          const latencyEvent = allEvents.find((e: AgentEvent) => e.event_type === 'call_latency_stats')
+          if (latencyEvent) {
+            console.log('Found existing latency stats event')
+            setLatencyStats(latencyEvent.data as CallLatencyStatsEventData)
+            setLatencyStatsError(null)
+          } else {
+            console.log('No latency stats event found in events')
+            // No stats found as event, reset state
+            setLatencyStats(null)
+            setLatencyStatsError(null)
+          }
         }
       } catch (error) {
         console.error('Failed to fetch events:', error)
         setEvents([])
+        setLatencyStats(null)
       } finally {
         setLoadingEvents(false)
       }
     }
 
     fetchEvents()
-  }, [call?.id])
+  }, [call?.id, slug, showTimeline, showLatency])
+
+  // Function to fetch latency stats on demand
+  const fetchLatencyStats = async () => {
+    if (!call?.id || loadingLatencyStats) return
+
+    setLoadingLatencyStats(true)
+    setLatencyStatsError(null)
+    
+    try {
+      const response = await fetch(`/api/${slug}/calls/${call.id}/latency-stats`)
+      if (response.ok) {
+        const data = await response.json()
+        setLatencyStats(data.stats)
+      } else {
+        const errorData = await response.json()
+        setLatencyStatsError(errorData.error || 'Failed to calculate statistics')
+      }
+    } catch (error) {
+      console.error('Failed to fetch latency stats:', error)
+      setLatencyStatsError('Failed to calculate statistics')
+    } finally {
+      setLoadingLatencyStats(false)
+    }
+  }
+
+  // Fetch call recording when call changes
+  useEffect(() => {
+    if (!call?.id) {
+      setRecordingUrl(null)
+      return
+    }
+
+    // If recording_url is already in the call object, use it
+    // if (call.recording_url) {
+    //   setRecordingUrl(call.recording_url)
+    //   return
+    // }
+
+    const fetchRecording = async () => {
+      setLoadingRecording(true)
+      try {
+        const response = await fetch(`/api/${slug}/calls/${call.id}/recording`)
+        if (response.ok) {
+          const data = await response.json()
+          setRecordingUrl(data.recordingUrl || null)
+        } else {
+          // Recording not available yet or doesn't exist
+          setRecordingUrl(null)
+        }
+      } catch (error) {
+        console.error('Failed to fetch recording:', error)
+        setRecordingUrl(null)
+      } finally {
+        setLoadingRecording(false)
+      }
+    }
+
+    fetchRecording()
+  }, [call?.id, call?.recording_url, slug])
 
   // Calculate cost for the call and extract model details
   const { callCost, modelDetails } = useMemo(() => {
@@ -340,19 +458,44 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="w-full grid grid-cols-3">
+          <TabsList className={`w-full grid ${
+            (() => {
+              const count = [true, showEvents, showTimeline, showLatency, showCosts, true].filter(Boolean).length
+              return count === 2 ? 'grid-cols-2' :
+                     count === 3 ? 'grid-cols-3' :
+                     count === 4 ? 'grid-cols-4' :
+                     count === 5 ? 'grid-cols-5' :
+                     'grid-cols-6'
+            })()
+          }`}>
             <TabsTrigger value="overview">
               <InfoIcon className="size-4" />
               <span className="ml-1 hidden sm:inline">Overview</span>
             </TabsTrigger>
-            {/* <TabsTrigger value="events">
-              <ActivityIcon className="size-4" />
-              <span className="ml-1 hidden sm:inline">Events</span>
-            </TabsTrigger> */}
-            <TabsTrigger value="cost">
-              <BarChart3Icon className="size-4" />
-              <span className="ml-1 hidden sm:inline">Cost</span>
-            </TabsTrigger>
+            {showEvents && (
+              <TabsTrigger value="events">
+                <ActivityIcon className="size-4" />
+                <span className="ml-1 hidden sm:inline">Events</span>
+              </TabsTrigger>
+            )}
+            {showTimeline && (
+              <TabsTrigger value="timeline">
+                <BarChart3Icon className="size-4" />
+                <span className="ml-1 hidden sm:inline">Timeline</span>
+              </TabsTrigger>
+            )}
+            {showLatency && (
+              <TabsTrigger value="latency">
+                <TimerIcon className="size-4" />
+                <span className="ml-1 hidden sm:inline">Latency</span>
+              </TabsTrigger>
+            )}
+            {showCosts && (
+              <TabsTrigger value="cost">
+                <CoinsIcon className="size-4" />
+                <span className="ml-1 hidden sm:inline">Cost</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="transcript">
               <MessageSquareIcon className="size-4" />
               <span className="ml-1 hidden sm:inline">Transcript</span>
@@ -362,7 +505,7 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4 mt-4">
             {/* Total Cost Summary */}
-            {callCost && (
+            {showCosts && callCost && (
               <Card className="border-2 border-primary/20 bg-primary/5">
                 <CardContent className="pt-6 pb-6">
                   <div className="space-y-4">
@@ -443,110 +586,312 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
 
           {/* Events Timeline Tab */}
           <TabsContent value="events" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <ActivityIcon className="size-4" />
-                  Event Timeline
-                </CardTitle>
-                <CardDescription>
-                  Chronological record of call events
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingEvents ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Loading events...
-                  </div>
-                ) : events.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No events recorded for this call
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                    {events.map((event, index) => {
-                      const eventTime = new Date(event.time)
-                      const isLastEvent = index === events.length - 1
-                      
-                      // Calculate time delta from previous event
-                      let timeDelta: string | null = null
-                      if (index > 0) {
-                        const previousEventTime = new Date(events[index - 1].time)
-                        const deltaMs = eventTime.getTime() - previousEventTime.getTime()
-                        timeDelta = formatTimeDelta(deltaMs)
-                      }
-                      
-                      return (
-                        <div key={event.id} className="relative flex gap-3">
-                          {/* Timeline line */}
-                          {!isLastEvent && (
-                            <div className="absolute left-[11px] top-6 bottom-0 w-px bg-border" />
-                          )}
-                          
-                          {/* Icon */}
-                          <div className="relative flex-shrink-0 mt-1">
-                            <div className="flex items-center justify-center size-6 rounded-full bg-primary/10 text-primary">
-                              {getEventIcon(event.event_type)}
-                            </div>
-                          </div>
-                          
-                          {/* Content */}
-                          <div className="flex-1 pb-4">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1">
-                                <div className="font-medium text-sm">
-                                  {getEventLabel(event.event_type)}
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                                  <span>{format(eventTime, 'HH:mm:ss.SSS')}</span>
-                                  {timeDelta && (
-                                    <>
-                                      <span>•</span>
-                                      <span className="text-primary font-medium">+{timeDelta}</span>
-                                    </>
-                                  )}
-                                </div>
-                                
-                                {/* Event-specific details */}
-                                {event.event_type === 'conversation_item_added' && (event.data as { textContent?: string; role?: string }).textContent && (
-                                  <div className="mt-2 text-sm bg-muted/50 p-2 rounded text-muted-foreground">
-                                    <span className="font-medium">{(event.data as { role?: string }).role}:</span> {(event.data as { textContent: string }).textContent.substring(0, 100)}{(event.data as { textContent: string }).textContent.length > 100 ? '...' : ''}
-                                  </div>
-                                )}
-                                {event.event_type === 'user_input_transcribed' && (event.data as { transcript?: string }).transcript && (
-                                  <div className="mt-2 text-sm bg-muted/50 p-2 rounded text-muted-foreground">
-                                    {(event.data as { transcript: string }).transcript}
-                                  </div>
-                                )}
-                                {event.event_type === 'function_tools_executed' && (
-                                  <div className="mt-2 text-sm text-muted-foreground">
-                                    {(event.data as { functionCallsCount?: number }).functionCallsCount || 0} tool{(event.data as { functionCallsCount?: number }).functionCallsCount !== 1 ? 's' : ''} called
-                                  </div>
-                                )}
-                                {event.event_type === 'transferred_to_team' && (event.data as { transferNumber?: string }).transferNumber && (
-                                  <div className="mt-2 text-sm text-muted-foreground">
-                                    To: {(event.data as { transferNumber: string }).transferNumber}
-                                  </div>
-                                )}
-                                {event.event_type === 'agent_state_changed' && (
-                                  <div className="mt-2 text-sm text-muted-foreground">
-                                    {(event.data as { oldState?: string; newState?: string }).oldState} → {(event.data as { oldState?: string; newState?: string }).newState}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <CallEventsTab slug={slug} callId={call.id} />
           </TabsContent>
 
+          {/* Audio Timeline Tab */}
+          {showTimeline && (
+            <TabsContent value="timeline" className="mt-4">
+            {recordingUrl && events.length > 0 ? (
+              <AudioEventTimeline
+                recordingUrl={recordingUrl}
+                events={events}
+                callStartTime={call.created_at}
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Audio Timeline</CardTitle>
+                  <CardDescription>Recording timeline not available</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    {!recordingUrl && 'No recording available for this call'}
+                    {recordingUrl && events.length === 0 && 'No events available for timeline'}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+          )}
+
+          {/* Latency Statistics Tab */}
+          {showLatency && (
+            <TabsContent value="latency" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TimerIcon className="size-4" />
+                    Latency Statistics
+                  </CardTitle>
+                  <CardDescription>
+                    Response time breakdown per conversation turn
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(loadingEvents || loadingLatencyStats) ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      {loadingLatencyStats ? 'Calculating statistics...' : 'Loading statistics...'}
+                    </div>
+                  ) : latencyStatsError ? (
+                    <div className="text-center py-8">
+                      <div className="text-sm text-muted-foreground mb-4">
+                        {latencyStatsError}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Latency statistics require metrics data from the call. This data may not be available for very short calls or calls that ended prematurely.
+                      </p>
+                    </div>
+                  ) : !latencyStats ? (
+                    <div className="text-center py-8">
+                      <div className="text-sm text-muted-foreground mb-4">
+                        Statistics not yet calculated
+                      </div>
+                      <button
+                        onClick={fetchLatencyStats}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm"
+                      >
+                        Calculate Statistics
+                      </button>
+                    </div>
+                  ) : latencyStats && (latencyStats.eou || latencyStats.llm || latencyStats.tts || latencyStats.rag || latencyStats.total) ? (
+                    <div className="space-y-6">
+                      {/* Helper function to get color based on value */}
+                      {(() => {
+                        const getLatencyColor = (value: number, thresholds: { good: number; warn: number }) => {
+                          if (value <= thresholds.good) return 'text-green-600';
+                          if (value <= thresholds.warn) return 'text-yellow-600';
+                          return 'text-red-600';
+                        };
+
+                        const formatLatency = (seconds: number) => {
+                          if (seconds < 1) return `${(seconds * 1000).toFixed(0)}ms`;
+                          return `${seconds.toFixed(3)}s`;
+                        };
+
+                        const renderStatsRow = (
+                          label: string,
+                          stats: LatencyStats | null,
+                          thresholds: { good: number; warn: number }
+                        ) => {
+                          if (!stats) return null;
+
+                          return (
+                            <div key={label} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">{label}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {stats.count} {stats.count === 1 ? 'sample' : 'samples'}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">Min</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.min, thresholds)}`}>
+                                    {formatLatency(stats.min)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">p50</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.p50, thresholds)}`}>
+                                    {formatLatency(stats.p50)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">p95</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.p95, thresholds)}`}>
+                                    {formatLatency(stats.p95)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">p99</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.p99, thresholds)}`}>
+                                    {formatLatency(stats.p99)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">Avg</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.avg, thresholds)}`}>
+                                    {formatLatency(stats.avg)}
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-muted-foreground">Max</div>
+                                  <div className={`font-semibold ${getLatencyColor(stats.max, thresholds)}`}>
+                                    {formatLatency(stats.max)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        };
+
+                        // Calculate average proportional breakdown
+                        const calculateProportionalBreakdown = () => {
+                          const eouAvg = latencyStats.eou?.avg || 0
+                          const ragAvg = latencyStats.rag?.avg || 0
+                          const llmAvg = latencyStats.llm?.avg || 0
+                          const ttsAvg = latencyStats.tts?.avg || 0
+                          const total = eouAvg + ragAvg + llmAvg + ttsAvg
+                          
+                          if (total === 0) return null
+                          
+                          return {
+                            eou: { value: eouAvg, percentage: (eouAvg / total) * 100 },
+                            rag: { value: ragAvg, percentage: (ragAvg / total) * 100 },
+                            llm: { value: llmAvg, percentage: (llmAvg / total) * 100 },
+                            tts: { value: ttsAvg, percentage: (ttsAvg / total) * 100 },
+                            total
+                          }
+                        }
+                        
+                        const breakdown = calculateProportionalBreakdown()
+
+                        return (
+                          <>
+                            {/* Proportional Breakdown Bar */}
+                            {breakdown && (
+                              <div className="p-4 border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg">
+                                <div className="text-sm font-semibold mb-3">Average Latency Breakdown</div>
+                                <div className="flex h-8 rounded-lg overflow-hidden border border-primary/20 mb-3">
+                                  {breakdown.eou.percentage > 0 && (
+                                    <div
+                                      className="bg-blue-500 flex items-center justify-center text-white text-xs font-semibold transition-all hover:opacity-80"
+                                      style={{ width: `${breakdown.eou.percentage}%` }}
+                                      title={`EOU: ${formatLatency(breakdown.eou.value)}`}
+                                    >
+                                      {breakdown.eou.percentage > 15 && 'EOU'}
+                                    </div>
+                                  )}
+                                  {breakdown.rag.percentage > 0 && (
+                                    <div
+                                      className="bg-purple-500 flex items-center justify-center text-white text-xs font-semibold transition-all hover:opacity-80"
+                                      style={{ width: `${breakdown.rag.percentage}%` }}
+                                      title={`RAG: ${formatLatency(breakdown.rag.value)}`}
+                                    >
+                                      {breakdown.rag.percentage > 15 && 'RAG'}
+                                    </div>
+                                  )}
+                                  {breakdown.llm.percentage > 0 && (
+                                    <div
+                                      className="bg-green-500 flex items-center justify-center text-white text-xs font-semibold transition-all hover:opacity-80"
+                                      style={{ width: `${breakdown.llm.percentage}%` }}
+                                      title={`LLM: ${formatLatency(breakdown.llm.value)}`}
+                                    >
+                                      {breakdown.llm.percentage > 15 && 'LLM'}
+                                    </div>
+                                  )}
+                                  {breakdown.tts.percentage > 0 && (
+                                    <div
+                                      className="bg-orange-500 flex items-center justify-center text-white text-xs font-semibold transition-all hover:opacity-80"
+                                      style={{ width: `${breakdown.tts.percentage}%` }}
+                                      title={`TTS: ${formatLatency(breakdown.tts.value)}`}
+                                    >
+                                      {breakdown.tts.percentage > 15 && 'TTS'}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  {breakdown.eou.percentage > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                                      <span>EOU: {breakdown.eou.percentage.toFixed(1)}% ({formatLatency(breakdown.eou.value)})</span>
+                                    </div>
+                                  )}
+                                  {breakdown.rag.percentage > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-purple-500 rounded"></div>
+                                      <span>RAG: {breakdown.rag.percentage.toFixed(1)}% ({formatLatency(breakdown.rag.value)})</span>
+                                    </div>
+                                  )}
+                                  {breakdown.llm.percentage > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                                      <span>LLM: {breakdown.llm.percentage.toFixed(1)}% ({formatLatency(breakdown.llm.value)})</span>
+                                    </div>
+                                  )}
+                                  {breakdown.tts.percentage > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-orange-500 rounded"></div>
+                                      <span>TTS: {breakdown.tts.percentage.toFixed(1)}% ({formatLatency(breakdown.tts.value)})</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-primary/20">
+                                  <div className="text-xs text-muted-foreground">
+                                    Total Average: {formatLatency(breakdown.total)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {latencyStats.total && (
+                              <div className="p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
+                                {renderStatsRow('Total Latency', latencyStats.total, { good: 1.0, warn: 2.0 })}
+                                <p className="text-xs text-muted-foreground mt-3">
+                                  Time from user stops speaking to agent starts responding
+                                </p>
+                              </div>
+                            )}
+                            
+                            <div className="space-y-4 pt-4 border-t">
+                              <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                                Component Breakdown
+                              </div>
+                              
+                              {latencyStats.eou && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  {renderStatsRow('End-of-Utterance (EOU)', latencyStats.eou, { good: 0.3, warn: 0.6 })}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Turn detection + transcription delay
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {latencyStats.llm && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  {renderStatsRow('LLM Time-to-First-Token', latencyStats.llm, { good: 0.4, warn: 0.8 })}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Time for LLM to start generating response
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {latencyStats.tts && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  {renderStatsRow('TTS Time-to-First-Byte', latencyStats.tts, { good: 0.2, warn: 0.4 })}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Time for TTS to start generating audio
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {latencyStats.rag && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  {renderStatsRow('RAG Knowledge Retrieval', latencyStats.rag, { good: 0.3, warn: 0.6 })}
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Time to retrieve context from knowledge base
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No latency statistics available for this call
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
           {/* Cost & Usage Tab */}
-          <TabsContent value="cost" className="space-y-4 mt-4">
+          {showCosts && (
+            <TabsContent value="cost" className="space-y-4 mt-4">
             {callCost && costBreakdown.length > 0 && (
               <Card>
                 <CardHeader>
@@ -673,6 +1018,7 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
               </Card>
             )}
           </TabsContent>
+          )}
 
           {/* Transcript Tab */}
           <TabsContent value="transcript" className="mt-4">
@@ -690,7 +1036,15 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
               </CardHeader>
               <CardContent>
                 {/* Audio Player */}
-                {call.recording_url && (
+                {loadingRecording && (
+                  <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <HeadphonesIcon className="size-4 text-primary animate-pulse" />
+                      <span className="text-sm text-muted-foreground">Loading recording...</span>
+                    </div>
+                  </div>
+                )}
+                {!loadingRecording && recordingUrl && (
                   <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
                     <div className="flex items-center gap-2 mb-2">
                       <HeadphonesIcon className="size-4 text-primary" />
@@ -701,7 +1055,7 @@ export function CallDetailSheet({ call, open, onOpenChange }: CallDetailSheetPro
                       className="w-full"
                       preload="metadata"
                     >
-                      <source src={call.recording_url} type="audio/mpeg" />
+                      <source src={recordingUrl} type="audio/mpeg" />
                       Your browser does not support the audio element.
                     </audio>
                   </div>

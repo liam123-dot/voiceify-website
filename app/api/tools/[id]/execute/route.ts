@@ -38,6 +38,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   console.log('🔧 Tool execution request for tool ID:', toolId)
   console.log('🤖 AI-provided parameters:', JSON.stringify(aiProvidedParams, null, 2))
   
+  // Extract metadata BEFORE flattening parameters
+  const callerPhoneNumber = (aiProvidedParams.metadata as Record<string, unknown> | undefined)?.['callerPhoneNumber'] as string | undefined
+  const calledPhoneNumber = (aiProvidedParams.metadata as Record<string, unknown> | undefined)?.['calledPhoneNumber'] as string | undefined
+
+  console.log(`📞 Context - Caller: ${callerPhoneNumber}, Called: ${calledPhoneNumber}`)
+  
   // Flatten nested parameters if they exist
   if (aiProvidedParams.parameters && typeof aiProvidedParams.parameters === 'object') {
     const params = aiProvidedParams.parameters as Record<string, unknown>
@@ -95,7 +101,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // ===================================================================
   
   if (tool.type === 'sms') {
-    return handleSmsAction(tool, aiProvidedParams, request)
+    return handleSmsAction(tool, aiProvidedParams, callerPhoneNumber, calledPhoneNumber)
   }
 
   // ===================================================================
@@ -265,7 +271,8 @@ async function handlePipedreamAction(
 async function handleSmsAction(
   tool: Record<string, unknown>,
   aiProvidedParams: Record<string, unknown>,
-  request: Request
+  callerPhoneNumber: string | undefined,
+  calledPhoneNumber: string | undefined
 ): Promise<NextResponse> {
   // ===================================================================
   // EXTRACT CONFIGURATION
@@ -293,16 +300,7 @@ async function handleSmsAction(
   console.log(`   Organization: ${organizationId}`)
   console.log(`   Static Config:`, JSON.stringify(staticConfig, null, 2))
   console.log(`   AI Params:`, JSON.stringify(aiProvidedParams, null, 2))
-
-  // ===================================================================
-  // EXTRACT CONTEXT FROM REQUEST (for variables)
-  // ===================================================================
-  
-  // Get caller phone number from request headers or context
-  const callerPhoneNumber = request.headers.get('x-caller-phone-number') || ''
-  const calledPhoneNumber = request.headers.get('x-called-phone-number') || ''
-  
-  console.log(`📞 Context - Caller: ${callerPhoneNumber}, Called: ${calledPhoneNumber}`)
+  console.log(`📞 Context - Caller: ${callerPhoneNumber || ''}, Called: ${calledPhoneNumber || ''}`)
 
   // ===================================================================
   // HELPER: Variable Substitution
@@ -311,8 +309,8 @@ async function handleSmsAction(
   
   const substituteVariables = (text: string): string => {
     return text
-      .replace(/\{\{caller_phone_number\}\}/g, callerPhoneNumber)
-      .replace(/\{\{called_phone_number\}\}/g, calledPhoneNumber)
+      .replace(/\{\{caller_phone_number\}\}/g, callerPhoneNumber || '')
+      .replace(/\{\{called_phone_number\}\}/g, calledPhoneNumber || '')
   }
 
   // ===================================================================

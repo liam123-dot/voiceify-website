@@ -14,19 +14,28 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 
 interface SiteHeaderProps {
   slug?: string
+  isAdmin?: boolean
 }
 
-export function SiteHeader({ slug }: SiteHeaderProps) {
+export function SiteHeader({ slug, isAdmin }: SiteHeaderProps) {
   const pathname = usePathname()
   const [agentNames, setAgentNames] = useState<Record<string, string>>({})
   const [toolNames, setToolNames] = useState<Record<string, string>>({})
   const [knowledgeBaseNames, setKnowledgeBaseNames] = useState<Record<string, string>>({})
+  const [evaluationNames, setEvaluationNames] = useState<Record<string, string>>({})
+  const [estateAgentNames, setEstateAgentNames] = useState<Record<string, string>>({})
   const [loadingAgents, setLoadingAgents] = useState<Record<string, boolean>>({})
   const [loadingTools, setLoadingTools] = useState<Record<string, boolean>>({})
   const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState<Record<string, boolean>>({})
+  const [loadingEvaluations, setLoadingEvaluations] = useState<Record<string, boolean>>({})
+  const [loadingEstateAgents, setLoadingEstateAgents] = useState<Record<string, boolean>>({})
+
+  // Check if we should show the admin button
+  const showAdminButton = isAdmin && !pathname.startsWith('/admin')
 
   // Fetch agent or tool name if we're on their detail pages
   useEffect(() => {
@@ -81,8 +90,8 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
       }
     }
     
-    // Check if we're on a knowledge base detail page (e.g., /[slug]/knowledge-base/[id])
-    if (segments.length >= 3 && segments[1] === 'knowledge-base' && slug) {
+    // Check if we're on a knowledge base detail page (e.g., /[slug]/knowledge-base/[id] or /[slug]/knowledge-bases/[id])
+    if (segments.length >= 3 && (segments[1] === 'knowledge-base') && slug) {
       const kbId = segments[2]
 
       if (uuidRegex.test(kbId) && !knowledgeBaseNames[kbId] && !loadingKnowledgeBases[kbId]) {
@@ -104,7 +113,59 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
           })
       }
     }
-  }, [pathname, agentNames, toolNames, knowledgeBaseNames, loadingAgents, loadingTools, loadingKnowledgeBases, slug])
+    
+    // Check if we're on an estate agent detail page (e.g., /[slug]/knowledge-bases/[id]/estate-agent/[itemId])
+    if (segments.length >= 5 && segments[1] === 'knowledge-bases' && segments[3] === 'estate-agent' && slug) {
+      const kbId = segments[2]
+      const estateAgentId = segments[4]
+
+      if (uuidRegex.test(estateAgentId) && !estateAgentNames[estateAgentId] && !loadingEstateAgents[estateAgentId]) {
+        // Set loading state
+        setLoadingEstateAgents(prev => ({ ...prev, [estateAgentId]: true }))
+
+        // Fetch the estate agent name
+        fetch(`/api/${slug}/knowledge-bases/${kbId}/items`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.items) {
+              const estateAgent = data.items.find((item: { id: string; name: string }) => item.id === estateAgentId)
+              if (estateAgent) {
+                setEstateAgentNames(prev => ({ ...prev, [estateAgentId]: estateAgent.name }))
+              }
+            }
+            setLoadingEstateAgents(prev => ({ ...prev, [estateAgentId]: false }))
+          })
+          .catch(err => {
+            console.error('Error fetching estate agent:', err)
+            setLoadingEstateAgents(prev => ({ ...prev, [estateAgentId]: false }))
+          })
+      }
+    }
+    
+    // Check if we're on an evaluation detail page (e.g., /[slug]/evaluations/[id])
+    if (segments.length >= 3 && segments[1] === 'evaluations' && slug) {
+      const evaluationId = segments[2]
+
+      if (uuidRegex.test(evaluationId) && !evaluationNames[evaluationId] && !loadingEvaluations[evaluationId]) {
+        // Set loading state
+        setLoadingEvaluations(prev => ({ ...prev, [evaluationId]: true }))
+
+        // Fetch the evaluation name
+        fetch(`/api/${slug}/evaluations/${evaluationId}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.evaluation) {
+              setEvaluationNames(prev => ({ ...prev, [evaluationId]: data.evaluation.name }))
+            }
+            setLoadingEvaluations(prev => ({ ...prev, [evaluationId]: false }))
+          })
+          .catch(err => {
+            console.error('Error fetching evaluation:', err)
+            setLoadingEvaluations(prev => ({ ...prev, [evaluationId]: false }))
+          })
+      }
+    }
+  }, [pathname, agentNames, toolNames, knowledgeBaseNames, evaluationNames, estateAgentNames, loadingAgents, loadingTools, loadingKnowledgeBases, loadingEvaluations, loadingEstateAgents, slug])
 
   // Generate breadcrumb items from pathname
   const getBreadcrumbItems = (path: string) => {
@@ -156,10 +217,30 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
       }
       
       // Check if this is a knowledge base ID
-      if (segments[index - 1] === 'knowledge-base' && uuidRegex.test(segment)) {
+      if ((segments[index - 1] === 'knowledge-base' || segments[index - 1] === 'knowledge-bases') && uuidRegex.test(segment)) {
         if (knowledgeBaseNames[segment]) {
           label = knowledgeBaseNames[segment]
         } else if (loadingKnowledgeBases[segment]) {
+          isLoading = true
+          label = '' // Will be replaced by skeleton
+        }
+      }
+      
+      // Check if this is an estate agent ID
+      if (segments[index - 1] === 'estate-agent' && uuidRegex.test(segment)) {
+        if (estateAgentNames[segment]) {
+          label = estateAgentNames[segment]
+        } else if (loadingEstateAgents[segment]) {
+          isLoading = true
+          label = '' // Will be replaced by skeleton
+        }
+      }
+      
+      // Check if this is an evaluation ID
+      if (segments[index - 1] === 'evaluations' && uuidRegex.test(segment)) {
+        if (evaluationNames[segment]) {
+          label = evaluationNames[segment]
+        } else if (loadingEvaluations[segment]) {
           isLoading = true
           label = '' // Will be replaced by skeleton
         }
@@ -188,7 +269,7 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
         />
         <Breadcrumb>
           <BreadcrumbList>
-            {breadcrumbItems.map((item, index) => (
+            {breadcrumbItems.map((item) => (
               <div key={item.href} className="flex items-center gap-1 lg:gap-2">
                 <BreadcrumbItem>
                   {item.isLoading ? (
@@ -206,6 +287,15 @@ export function SiteHeader({ slug }: SiteHeaderProps) {
             ))}
           </BreadcrumbList>
         </Breadcrumb>
+        {showAdminButton && (
+          <div className="ml-auto">
+            <Link href="/admin">
+              <Button variant="outline" size="sm">
+                Admin Dashboard
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
     </header>
   )

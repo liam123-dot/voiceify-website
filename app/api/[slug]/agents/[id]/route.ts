@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getAuthSession } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { AgentConfiguration } from '@/types/agent-config'

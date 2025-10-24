@@ -46,6 +46,7 @@ export interface STTConfig {
   model: string; // LiveKit format: e.g., "deepgram/nova-2-phonecall", "assemblyai/universal-streaming"
   inferenceType?: 'livekit' | 'direct'; // Whether to use LiveKit Inference or direct plugin (default: 'livekit')
   language?: string; // Language code (e.g., "en", "es", "fr")
+  keywords?: string[]; // Optional keywords for improved transcription accuracy (Deepgram and AssemblyAI)
   apiKey?: string; // Optional custom API key
 }
 
@@ -72,7 +73,11 @@ export interface LLMConfig {
 export interface TTSConfig {
   model: string; // LiveKit format: "provider/model:voiceId"
   inferenceType?: 'livekit' | 'direct'; // Whether to use LiveKit Inference or direct plugin (default: 'livekit')
-  speed?: number;
+  speed?: number; // 0.7 to 1.2, default 1.0
+  stability?: number; // ElevenLabs: 0.25 to 1.0, controls consistency (default 0.5)
+  similarity_boost?: number; // ElevenLabs: 0.0 to 1.0, controls voice matching (default 0.75)
+  style?: number; // ElevenLabs: 0.0 to 0.75, controls expressiveness (default 0.0)
+  use_speaker_boost?: boolean; // ElevenLabs: enhances similarity to original speaker (default true)
   apiKey?: string;
 }
 
@@ -91,9 +96,16 @@ export interface PipelineConfig {
  */
 export interface VADOptions {
   minSpeechDuration?: number; // Minimum speech duration in milliseconds
-  silenceTimeout?: number; // Silence timeout in milliseconds
-  prefixPadding?: number; // Audio padding before speech in milliseconds
-  silenceThreshold?: number; // Silence threshold (0.0 to 1.0)
+  minSilenceDuration?: number; // Minimum silence duration in milliseconds
+  prefixPaddingDuration?: number; // Audio padding before speech in milliseconds
+}
+
+/**
+ * Turn Detector (EOU) options for AgentSession
+ */
+export interface TurnDetectorOptions {
+  minEndpointingDelay?: number; // Delay before considering turn complete (ms)
+  maxEndpointingDelay?: number; // Maximum time to wait for user to continue speaking (ms)
 }
 
 /**
@@ -103,6 +115,7 @@ export interface TurnDetectionConfig {
   type: TurnDetectionType;
   vadProvider?: VADProvider; // Voice Activity Detection provider
   vadOptions?: VADOptions;
+  turnDetectorOptions?: TurnDetectorOptions; // Options for multilingual turn detector
 }
 
 /**
@@ -122,6 +135,14 @@ export interface AgentTool {
   description: string;
   parameters?: Record<string, any>;
   enabled: boolean;
+}
+
+/**
+ * Knowledge base configuration
+ */
+export interface KnowledgeBaseConfig {
+  useAsTool?: boolean; // Default: false (pre-inject mode). When true, LLM decides when to query via tool call
+  matchCount?: number; // Default: 3. Number of knowledge base items to match against
 }
 
 /**
@@ -162,11 +183,19 @@ export interface AgentConfiguration {
   // Noise cancellation configuration
   noiseCancellation?: NoiseCancellationConfig;
   
+  // Knowledge base configuration
+  knowledgeBase?: KnowledgeBaseConfig;
+  
   // Tools configuration (empty for now, but ready for future use)
   tools?: AgentTool[];
   
   // Additional settings
   settings?: AgentSettings;
+
+  backgroundNoise: {
+    enabled: boolean
+  }
+
 }
 
 /**
@@ -191,10 +220,9 @@ export const SAMPLE_CONFIGS = {
       type: 'server-vad' as TurnDetectionType,
       vadProvider: 'silero' as VADProvider,
       vadOptions: {
-        minSpeechDuration: 200,
-        silenceTimeout: 800,
-        prefixPadding: 300,
-        silenceThreshold: 0.5
+        minSpeechDuration: 50,
+        minSilenceDuration: 550,
+        prefixPaddingDuration: 500
       }
     },
     noiseCancellation: {
@@ -206,6 +234,9 @@ export const SAMPLE_CONFIGS = {
       enableTranscription: true,
       recordSession: true,
       interruptible: true
+    },
+    backgroundNoise: {
+      enabled: false
     }
   } satisfies AgentConfiguration,
 
@@ -247,6 +278,9 @@ export const SAMPLE_CONFIGS = {
       recordSession: false,
       maxDuration: 3600,
       interruptible: true
+    },
+    backgroundNoise: {
+      enabled: false
     }
   } satisfies AgentConfiguration,
 
@@ -283,6 +317,9 @@ export const SAMPLE_CONFIGS = {
       enableTranscription: true,
       recordSession: true,
       interruptible: false
+    },
+    backgroundNoise: {
+      enabled: false
     }
   } satisfies AgentConfiguration
 };

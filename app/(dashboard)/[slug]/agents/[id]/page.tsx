@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { getAuthSession } from "@/lib/auth"
 import { notFound } from "next/navigation"
-import { AgentConfigurationForm } from "@/components/agent-configuration-form"
+import { AgentConfigurationForm } from "@/components/agents/AgentConfigForm/agent-configuration-form"
 import type { AgentConfiguration } from "@/types/agent-config"
 
 type PageProps = {
@@ -10,7 +10,7 @@ type PageProps = {
 
 export default async function AgentPage({ params }: PageProps) {
   const { id, slug } = await params
-  const { user, organizationId } = await getAuthSession()
+  const { user, organizationId } = await getAuthSession(slug)
 
   if (!user || !organizationId) {
     notFound()

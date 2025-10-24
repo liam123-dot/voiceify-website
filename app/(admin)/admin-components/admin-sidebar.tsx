@@ -3,7 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import {
+  IconDashboard,
   IconPackage,
+  IconPhone,
   IconUsers,
 } from "@tabler/icons-react"
 
@@ -22,9 +24,19 @@ import {
 const data = {
   navMain: [
     {
+      title: "Dashboard",
+      url: "/admin",
+      icon: IconDashboard,
+    },
+    {
       title: "Clients",
       url: "/admin/clients",
       icon: IconUsers,
+    },
+    {
+      title: "Calls",
+      url: "/admin/calls",
+      icon: IconPhone,
     },
     {
       title: "Products",
@@ -45,7 +57,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <Link href="/admin" prefetch={true}>
-                <span className="text-base font-semibold">Voiceify Admin</span>
+                <span className="text-base font-semibold">Clearsky AI Admin</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

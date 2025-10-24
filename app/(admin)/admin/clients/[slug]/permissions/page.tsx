@@ -1,4 +1,3 @@
-import { withAuth } from "@workos-inc/authkit-nextjs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { PermissionsTable } from "./permissions-table"
 import { getOrg } from "@/lib/auth"
@@ -11,7 +10,6 @@ interface PermissionsPageProps {
 
 export default async function PermissionsPage({ params }: PermissionsPageProps) {
   const { id } = await params
-  const { user } = await withAuth()
 
   // Fetch the organization to get current permissions
   let organisation

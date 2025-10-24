@@ -10,7 +10,7 @@ export default async function AgentDeploymentPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6 mt-6">
-      <AgentDeployment agentId={id} />
+      <AgentDeployment agentId={id} slug={slug} />
       <AgentRules agentId={id} slug={slug} />
     </div>
   )

@@ -44,7 +44,40 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch knowledge bases' }, { status: 500 })
     }
 
-    return NextResponse.json({ knowledgeBases: knowledgeBases || [] })
+    // Fetch agent assignments for all knowledge bases
+    const kbIds = (knowledgeBases || []).map(kb => kb.id)
+    const { data: agentAssignments } = await supabase
+      .from('agent_knowledge_bases')
+      .select('knowledge_base_id, agents!agent_id(id, name)')
+      .in('knowledge_base_id', kbIds) as {
+        data: Array<{
+          knowledge_base_id: string
+          agents: { id: string; name: string } | null
+        }> | null
+      }
+
+    // Create a map of knowledge base ID to agents
+    const agentMap = new Map<string, { id: string; name: string }[]>()
+    agentAssignments?.forEach((assignment) => {
+      if (assignment.agents) {
+        const kbId = assignment.knowledge_base_id
+        if (!agentMap.has(kbId)) {
+          agentMap.set(kbId, [])
+        }
+        agentMap.get(kbId)!.push({
+          id: assignment.agents.id,
+          name: assignment.agents.name
+        })
+      }
+    })
+
+    // Add agents to each knowledge base
+    const knowledgeBasesWithAgents = (knowledgeBases || []).map(kb => ({
+      ...kb,
+      agents: agentMap.get(kb.id) || []
+    }))
+
+    return NextResponse.json({ knowledgeBases: knowledgeBasesWithAgents })
   } catch (error) {
     console.error('Error in GET /api/[slug]/knowledge-bases:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

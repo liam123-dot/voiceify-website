@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { IconDeviceMobile } from '@tabler/icons-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -30,6 +30,10 @@ type PhoneNumber = {
   friendly_name: string | null
   status: string
   created_at: string
+  agent: {
+    id: string
+    name: string
+  } | null
 }
 
 interface PhoneNumbersResponse {
@@ -58,11 +62,54 @@ export function PhoneNumbersContainer({ organizationSlug }: PhoneNumbersContaine
   if (isLoading) {
     return (
       <div className="px-4 lg:px-6">
-        <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">Loading phone numbers...</p>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-10 w-40" />
+          </div>
+          <div className="rounded-lg border overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-semibold">Phone Number</TableHead>
+                  <TableHead className="font-semibold">Provider</TableHead>
+                  <TableHead className="font-semibold">Friendly Name</TableHead>
+                  <TableHead className="font-semibold">Agent</TableHead>
+                  <TableHead className="font-semibold">Status</TableHead>
+                  <TableHead className="font-semibold">Added</TableHead>
+                  <TableHead className="text-right font-semibold w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[...Array(3)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="h-8 w-8 ml-auto" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
     )
   }
@@ -70,70 +117,76 @@ export function PhoneNumbersContainer({ organizationSlug }: PhoneNumbersContaine
   if (phoneNumbers.length === 0) {
     return (
       <div className="px-4 lg:px-6">
-        <Card>
-          <CardContent className="p-6">
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <IconDeviceMobile />
-                </EmptyMedia>
-                <EmptyTitle>No Phone Numbers Yet</EmptyTitle>
-                <EmptyDescription>
-                  You haven&apos;t added any phone numbers yet. Get started by adding
-                  your first phone number from a provider like Twilio.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <AddPhoneNumberButton onSuccess={() => refetch()} />
-              </EmptyContent>
-            </Empty>
-          </CardContent>
-        </Card>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <IconDeviceMobile />
+            </EmptyMedia>
+            <EmptyTitle>No Phone Numbers Yet</EmptyTitle>
+            <EmptyDescription>
+              You haven&apos;t added any phone numbers yet. Get started by adding
+              your first phone number from a provider like Twilio.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <AddPhoneNumberButton slug={organizationSlug} onSuccess={() => refetch()} />
+          </EmptyContent>
+        </Empty>
       </div>
     )
   }
 
   return (
     <div className="px-4 lg:px-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Phone Numbers</CardTitle>
-              <CardDescription>
-                {phoneNumbers.length} {phoneNumbers.length === 1 ? 'number' : 'numbers'} · Manage your phone numbers from various providers
-              </CardDescription>
-            </div>
-            <AddPhoneNumberButton onSuccess={() => refetch()} />
-          </div>
-        </CardHeader>
-        <CardContent>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {phoneNumbers.length} {phoneNumbers.length === 1 ? 'number' : 'numbers'}
+          </p>
+          <AddPhoneNumberButton slug={organizationSlug} onSuccess={() => refetch()} />
+        </div>
+        <div className="rounded-lg border overflow-hidden">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Phone Number</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Friendly Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Added</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="font-semibold">Phone Number</TableHead>
+                <TableHead className="font-semibold">Provider</TableHead>
+                <TableHead className="font-semibold">Friendly Name</TableHead>
+                <TableHead className="font-semibold">Agent</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="font-semibold">Added</TableHead>
+                <TableHead className="text-right font-semibold w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {phoneNumbers.map((number) => (
-                <TableRow key={number.id}>
-                  <TableCell className="font-medium">
+                <TableRow key={number.id} className="hover:bg-muted/30 group">
+                  <TableCell className="font-medium text-sm">
                     {number.phone_number}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="text-xs">
                       {number.provider}
                     </Badge>
                   </TableCell>
-                  <TableCell>{number.friendly_name || '-'}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {number.friendly_name || '—'}
+                  </TableCell>
+                  <TableCell>
+                    {number.agent ? (
+                      <Badge variant="secondary" className="text-xs">
+                        {number.agent.name}
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground opacity-50">
+                        Unassigned
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge 
                       variant={number.status === 'active' ? 'default' : 'secondary'}
+                      className="text-xs"
                     >
                       {number.status}
                     </Badge>
@@ -145,6 +198,7 @@ export function PhoneNumbersContainer({ organizationSlug }: PhoneNumbersContaine
                     <DeletePhoneNumberButton 
                       phoneNumberId={number.id}
                       phoneNumber={number.phone_number}
+                      slug={organizationSlug}
                       onSuccess={() => refetch()}
                     />
                   </TableCell>
@@ -152,8 +206,8 @@ export function PhoneNumbersContainer({ organizationSlug }: PhoneNumbersContaine
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

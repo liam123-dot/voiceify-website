@@ -1,4 +1,3 @@
-import { withAuth } from "@workos-inc/authkit-nextjs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface ProductsPageProps {
@@ -8,8 +7,7 @@ interface ProductsPageProps {
 }
 
 export default async function ProductsPage({ params }: ProductsPageProps) {
-  const { id } = await params
-  const { user } = await withAuth()
+  await params
 
   return (
     <div className="space-y-4 mt-6">

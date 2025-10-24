@@ -87,6 +87,19 @@ export function AgentNav({ agentId, slug }: AgentNavProps) {
       >
         Knowledge Bases
       </Link>
+      <Link 
+        href={`/${slug}/agents/${agentId}/evaluations`}
+        prefetch={true}
+        className={cn(
+          buttonVariants({ variant: "ghost" }),
+          "rounded-b-none border-b-2",
+          isActive(`/${slug}/agents/${agentId}/evaluations`) 
+            ? "border-primary" 
+            : "border-transparent"
+        )}
+      >
+        Evaluations
+      </Link>
     </div>
   )
 }

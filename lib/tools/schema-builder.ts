@@ -3,10 +3,6 @@ import {
   ToolConfig,
   ToolFunctionSchema,
   ParameterSource,
-  SmsToolConfig,
-  TransferCallToolConfig,
-  ApiRequestToolConfig,
-  PipedreamActionToolConfig,
 } from '@/types/tools'
 
 // ==================== Tool Name Generation ====================
@@ -204,74 +200,6 @@ export function buildFunctionSchema(config: ToolConfig): ToolFunctionSchema {
       required,
     },
   }
-}
-
-
-
-/**
- * Extract only AI-generated parameters with their Zod schemas
- * Reconstructs schemas from prompts since Zod schemas can't be passed through JSON
- */
-function extractAiParameters(config: ToolConfig): Record<string, z.ZodTypeAny> {
-  const aiParams: Record<string, z.ZodTypeAny> = {}
-
-  const processParam = (key: string, source: ParameterSource) => {
-    if (source.mode === 'ai') {
-      console.log('Processing AI parameter:', source.prompt)
-      // Reconstruct Zod schema with description from prompt
-      const baseSchema = z.string()
-      const describedSchema = baseSchema.describe(source.prompt)
-      console.log('Base schema:', baseSchema)
-      console.log('Described schema:', describedSchema)
-      console.log('Are they the same?', baseSchema === describedSchema)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      console.log('Base _def:', (baseSchema as any)._def)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      console.log('Described _def:', (describedSchema as any)._def)
-      aiParams[key] = describedSchema
-    } else if (source.mode === 'array_extendable' && source.aiExtension.enabled) {
-      // Create array schema with description at the array level
-      const arraySchema = z.array(z.string().describe(source.aiExtension.prompt)).describe(source.aiExtension.prompt)
-      aiParams[key] = source.aiExtension.required
-        ? arraySchema.min(1)
-        : arraySchema.optional()
-    }
-  }
-
-  switch (config.type) {
-    case 'sms':
-      processParam('text', config.text)
-      processParam('recipients', config.recipients)
-      break
-
-    case 'transfer_call':
-      if (config.message.strategy === 'summarized') {
-        aiParams.summary = z.string().describe('Summary of the conversation')
-      }
-      break
-
-    case 'api_request':
-      processParam('url', config.url)
-      if (config.headers) {
-        Object.entries(config.headers).forEach(([key, source]) => {
-          processParam(`header_${key}`, source)
-        })
-      }
-      if (config.body) {
-        Object.entries(config.body).forEach(([key, source]) => {
-          processParam(`body_${key}`, source)
-        })
-      }
-      break
-
-    case 'pipedream_action':
-      Object.entries(config.params).forEach(([key, source]) => {
-        processParam(key, source)
-      })
-      break
-  }
-
-  return aiParams
 }
 
 // ==================== Static Config Builder ====================

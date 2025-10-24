@@ -1,14 +1,15 @@
-type PageProps = {
-  params: Promise<{ slug: string }>
-}
+'use client'
 
-export default async function EvaluationsPage({ params }: PageProps) {
+import { use } from 'react'
+import { EvaluationsList } from '@/components/evaluations/EvaluationsList'
 
-  const { slug } = await params
+export default function EvaluationsPage ({ params }: { params: Promise<{ slug: string }> }) {
+  // Unwrap params using use() for client component
+  const { slug } = use(params)
 
   return (
-    <div>
-      <h1>Evaluations</h1>
+    <div className="space-y-6 px-4 lg:px-6">
+      <EvaluationsList slug={slug} />
     </div>
   )
 }

@@ -122,13 +122,51 @@ export function AgentRules({ agentId, slug }: AgentRulesProps) {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="flex items-center justify-center py-8">
-            <IconLoader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <div className="h-6 w-40 bg-accent animate-pulse rounded-md" />
+              <div className="h-4 w-80 bg-accent animate-pulse rounded-md" />
+            </div>
+            <div className="h-6 w-12 bg-accent animate-pulse rounded-md" />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="h-4 w-24 bg-accent animate-pulse rounded-md" />
+                  <div className="h-8 w-8 bg-accent animate-pulse rounded-md" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-16 bg-accent animate-pulse rounded-md" />
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                      <div key={d} className="h-10 w-12 bg-accent animate-pulse rounded-md" />
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="h-4 w-20 bg-accent animate-pulse rounded-md" />
+                    <div className="h-10 w-full bg-accent animate-pulse rounded-md" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-20 bg-accent animate-pulse rounded-md" />
+                    <div className="h-10 w-full bg-accent animate-pulse rounded-md" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-32 bg-accent animate-pulse rounded-md" />
+                  <div className="h-10 w-full bg-accent animate-pulse rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 

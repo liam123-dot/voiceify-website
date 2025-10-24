@@ -43,7 +43,7 @@ export default function OnboardingPage() {
         throw new Error('Failed to create organization')
       }
 
-      toast.success('Organization created!', 'Welcome to Voiceify')
+      toast.success('Organization created!', 'Welcome to Clearsky AI')
 
       // Redirect to dashboard
       router.push(`/${slug}`)
@@ -60,7 +60,7 @@ export default function OnboardingPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Welcome to Voiceify</CardTitle>
+          <CardTitle>Welcome to Clearsky AI</CardTitle>
           <CardDescription>Create your organization to get started</CardDescription>
         </CardHeader>
         <CardContent>

@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { ToolConfig, ToolDatabaseRecord, SmsToolConfig, TransferCallToolConfig } from '@/types/tools'
+import { ToolConfig } from '@/types/tools'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -198,6 +198,7 @@ export function CreateToolForm({ slug }: CreateToolFormProps) {
                     : undefined
                 }
                 onChange={handleToolConfigChange}
+                slug={slug}
               />
             )}
 

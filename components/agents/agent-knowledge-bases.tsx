@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,7 +35,7 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
   const [unassigningKbId, setUnassigningKbId] = useState<string | null>(null)
 
   // Fetch knowledge bases
-  const fetchKnowledgeBases = async () => {
+  const fetchKnowledgeBases = useCallback(async () => {
     try {
       setIsLoading(true)
 
@@ -67,17 +67,24 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [agentId, slug])
 
   useEffect(() => {
     fetchKnowledgeBases()
-  }, [agentId, slug])
+  }, [fetchKnowledgeBases])
 
   // Assign a knowledge base to the agent
   const handleAssignKnowledgeBase = async (knowledgeBaseId: string) => {
-    try {
-      setAssigningKbId(knowledgeBaseId)
+    // Find the knowledge base to assign
+    const kbToAssign = availableKnowledgeBases.find(kb => kb.id === knowledgeBaseId)
+    if (!kbToAssign) return
 
+    // Optimistically update the UI
+    setAvailableKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+    setAssignedKnowledgeBases(prev => [...prev, kbToAssign])
+    setAssigningKbId(knowledgeBaseId)
+
+    try {
       const response = await fetch(`/api/${slug}/agents/${agentId}/knowledge-bases/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,13 +94,18 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
       const data = await response.json()
 
       if (!data.success) {
+        // Revert optimistic update
+        setAssignedKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+        setAvailableKnowledgeBases(prev => [...prev, kbToAssign])
         toast.error(data.error || 'Failed to assign knowledge base')
         return
       }
 
       toast.success('Knowledge base assigned successfully')
-      fetchKnowledgeBases() // Refresh the lists
     } catch (error) {
+      // Revert optimistic update
+      setAssignedKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+      setAvailableKnowledgeBases(prev => [...prev, kbToAssign])
       console.error('Error assigning knowledge base:', error)
       toast.error('Failed to assign knowledge base')
     } finally {
@@ -103,9 +115,16 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
 
   // Unassign a knowledge base from the agent
   const handleUnassignKnowledgeBase = async (knowledgeBaseId: string) => {
-    try {
-      setUnassigningKbId(knowledgeBaseId)
+    // Find the knowledge base to unassign
+    const kbToUnassign = assignedKnowledgeBases.find(kb => kb.id === knowledgeBaseId)
+    if (!kbToUnassign) return
 
+    // Optimistically update the UI
+    setAssignedKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+    setAvailableKnowledgeBases(prev => [...prev, kbToUnassign])
+    setUnassigningKbId(knowledgeBaseId)
+
+    try {
       const response = await fetch(`/api/${slug}/agents/${agentId}/knowledge-bases/unassign`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -115,13 +134,18 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
       const data = await response.json()
 
       if (!data.success) {
+        // Revert optimistic update
+        setAvailableKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+        setAssignedKnowledgeBases(prev => [...prev, kbToUnassign])
         toast.error(data.error || 'Failed to unassign knowledge base')
         return
       }
 
       toast.success('Knowledge base unassigned successfully')
-      fetchKnowledgeBases() // Refresh the lists
     } catch (error) {
+      // Revert optimistic update
+      setAvailableKnowledgeBases(prev => prev.filter(kb => kb.id !== knowledgeBaseId))
+      setAssignedKnowledgeBases(prev => [...prev, kbToUnassign])
       console.error('Error unassigning knowledge base:', error)
       toast.error('Failed to unassign knowledge base')
     } finally {
@@ -131,13 +155,57 @@ export function AgentKnowledgeBases({ agentId, slug }: AgentKnowledgeBasesProps)
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="space-y-2">
+              <div className="h-6 w-52 bg-accent animate-pulse rounded-md" />
+              <div className="h-4 w-full bg-accent animate-pulse rounded-md" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <div className="p-4 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between border-b pb-3 last:border-b-0">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-5 w-40 bg-accent animate-pulse rounded-md" />
+                      <div className="h-4 w-full bg-accent animate-pulse rounded-md" />
+                    </div>
+                    <div className="h-9 w-24 bg-accent animate-pulse rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-6 w-52 bg-accent animate-pulse rounded-md" />
+                <div className="h-4 w-64 bg-accent animate-pulse rounded-md" />
+              </div>
+              <div className="h-9 w-48 bg-accent animate-pulse rounded-md" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <div className="p-4 space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="flex items-center justify-between border-b pb-3 last:border-b-0">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-5 w-40 bg-accent animate-pulse rounded-md" />
+                      <div className="h-4 w-full bg-accent animate-pulse rounded-md" />
+                    </div>
+                    <div className="h-9 w-24 bg-accent animate-pulse rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 

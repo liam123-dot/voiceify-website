@@ -1,4 +1,3 @@
-import { withAuth } from "@workos-inc/authkit-nextjs"
 import { WorkOS } from '@workos-inc/node'
 import { notFound } from "next/navigation"
 import { ClientNav } from "./client-nav"
@@ -11,13 +10,12 @@ type LayoutProps = {
   params: Promise<{ slug: string }>
 }
 
-// const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-const baseUrl = 'http://localhost:3000';
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+// const baseUrl = 'http://localhost:3000';
 
 
 export default async function ClientLayout({ children, params }: LayoutProps) {
   const { slug } = await params
-  const { user } = await withAuth()
 
   // Fetch organization from database by slug
   const org = await getOrgBySlug(slug)

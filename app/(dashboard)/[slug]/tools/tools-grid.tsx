@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import {
   Table,
@@ -42,14 +43,16 @@ interface ToolWithAgents extends ToolCardData {
 
 function getToolIcon(tool: ToolWithAgents) {
   const metadata = tool.config_metadata as Record<string, unknown>
-
+  console.log('Metadata:', JSON.stringify(metadata, null, 2))
   const pipedreamMetadata = metadata.pipedreamMetadata as Record<string, unknown> | undefined
   if (tool.type === 'pipedream_action' && pipedreamMetadata?.appImgSrc) {
     return (
-      <img
+      <Image
         src={pipedreamMetadata.appImgSrc as string}
         alt={(pipedreamMetadata.appName as string) || 'App'}
         className="h-5 w-5 rounded object-cover"
+        width={20}
+        height={20}
       />
     )
   }
@@ -136,75 +139,15 @@ export function ToolsGrid({ tools: initialTools, slug }: ToolsGridProps) {
   const [deletingToolId, setDeletingToolId] = useState<string | null>(null)
   const [toolToDelete, setToolToDelete] = useState<string | null>(null)
   const [toolsWithAgents, setToolsWithAgents] = useState<ToolWithAgents[]>([])
-  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const fetchAgentAssignments = async () => {
-      try {
-        setIsLoading(true)
-        const response = await fetch(`/api/${slug}/tools`)
-        const data = await response.json()
-
-        if (!data.success || !data.tools) {
-          console.error('Failed to fetch tools')
-          setToolsWithAgents(
-            initialTools.map(tool => ({ ...tool, agents: [] }))
-          )
-          return
-        }
-
-        // Create a map of tool IDs to agent assignments
-        const toolAgentMap = new Map<string, AgentInfo[]>()
-
-        // Fetch all agents and their tool assignments
-        const agentsResponse = await fetch(`/api/${slug}/agents`)
-        if (agentsResponse.ok) {
-          const agentsData = await agentsResponse.json()
-          const agents = agentsData.agents || []
-
-          // For each agent, get their assigned tools
-          for (const agent of agents) {
-            const toolsResponse = await fetch(
-              `/api/${slug}/agents/${agent.id}/tools`
-            )
-            if (toolsResponse.ok) {
-              const toolsData = await toolsResponse.json()
-              const assignedTools = toolsData.tools || []
-
-              // Add this agent to each of their tools
-              for (const tool of assignedTools) {
-                const toolId = tool.id
-                if (!toolAgentMap.has(toolId)) {
-                  toolAgentMap.set(toolId, [])
-                }
-                toolAgentMap.get(toolId)!.push({
-                  id: agent.id,
-                  name: agent.name || agent.label || 'Unnamed Agent',
-                })
-              }
-            }
-          }
-        }
-
-        // Enhance tools with their agent assignments
-        const enhancedTools = initialTools.map(tool => ({
-          ...tool,
-          agents: toolAgentMap.get(tool.id) || [],
-        }))
-
-        setToolsWithAgents(enhancedTools)
-      } catch (error) {
-        console.error('Error fetching agent assignments:', error)
-        setToolsWithAgents(
-          initialTools.map(tool => ({ ...tool, agents: [] }))
-        )
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchAgentAssignments()
-  }, [slug, initialTools])
+    // Tools already come with agents from the API
+    const enhancedTools = initialTools.map((tool: ToolCardData & { agents?: AgentInfo[] }) => ({
+      ...tool,
+      agents: tool.agents || [],
+    }))
+    setToolsWithAgents(enhancedTools)
+  }, [initialTools])
 
   const handleDeleteTool = async (toolId: string) => {
     try {
@@ -247,13 +190,7 @@ export function ToolsGrid({ tools: initialTools, slug }: ToolsGridProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  Loading...
-                </TableCell>
-              </TableRow>
-            ) : toolsWithAgents.length === 0 ? (
+            {toolsWithAgents.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   No tools yet

@@ -13,10 +13,11 @@ import {
 import { AddPhoneNumberForm } from "./add-phone-number-form"
 
 interface AddPhoneNumberButtonProps {
+  slug: string
   onSuccess?: () => void
 }
 
-export function AddPhoneNumberButton({ onSuccess }: AddPhoneNumberButtonProps = {}) {
+export function AddPhoneNumberButton({ slug, onSuccess }: AddPhoneNumberButtonProps) {
   const [open, setOpen] = useState(false)
 
   const handleSuccess = () => {
@@ -37,7 +38,7 @@ export function AddPhoneNumberButton({ onSuccess }: AddPhoneNumberButtonProps = 
           </SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-4">
-          <AddPhoneNumberForm onSuccess={handleSuccess} />
+          <AddPhoneNumberForm slug={slug} onSuccess={handleSuccess} />
         </div>
       </SheetContent>
     </Sheet>

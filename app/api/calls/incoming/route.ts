@@ -219,8 +219,7 @@ function generateTransferTwiML(transferNumber: string, timeout: number, enableFa
 function generateAgentTwiML(agent: AgentData, params: TwilioCallParams, callId: string): string {
   const livekitSipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT
   const livekitUsername = process.env.LIVEKIT_SIP_USERNAME
-  const livekitPassword = process.env.LIVEKIT_SIP_PASSWORD
-  
+
   console.log('\n📞 GENERATING TWIML:')
   console.log(`  Action: ROUTE TO AGENT`)
   console.log(`  LIVEKIT_SIP_ENDPOINT: ${livekitSipEndpoint || 'NOT SET'}`)
@@ -236,7 +235,7 @@ function generateAgentTwiML(agent: AgentData, params: TwilioCallParams, callId: 
   
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial referUrl="${process.env.NEXT_PUBLIC_APP_URL}/api/calls/incoming/refer">
+  <Dial referUrl="${process.env.NEXT_PUBLIC_APP_URL}/api/calls/incoming/refer" ringTone="uk">
     <Sip>
       ${sipUri}
     </Sip>

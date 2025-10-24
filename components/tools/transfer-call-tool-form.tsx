@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { TransferCallToolConfig, ToolFormProps } from '@/types/tools'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -58,7 +57,7 @@ export function TransferCallToolForm({ initialData, onChange, slug }: ToolFormPr
     }
 
     loadAgents()
-  }, [])
+  }, [slug])
 
   // Update parent whenever state changes
   useEffect(() => {

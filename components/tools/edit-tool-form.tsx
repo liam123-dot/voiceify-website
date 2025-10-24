@@ -249,6 +249,7 @@ export function EditToolForm({ tool, slug }: EditToolFormProps) {
               <SmsToolForm
                 initialData={{ ...toolConfig, label, description }}
                 onChange={handleToolConfigChange}
+                slug={slug}
               />
             )}
 

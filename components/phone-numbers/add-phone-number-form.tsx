@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button"
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -50,10 +49,11 @@ interface TwilioNumber {
 }
 
 interface AddPhoneNumberFormProps {
+  slug: string
   onSuccess?: () => void
 }
 
-export function AddPhoneNumberForm({ onSuccess }: AddPhoneNumberFormProps) {
+export function AddPhoneNumberForm({ slug, onSuccess }: AddPhoneNumberFormProps) {
   const router = useRouter()
   const [availableNumbers, setAvailableNumbers] = useState<TwilioNumber[]>([])
   const [loadingNumbers, setLoadingNumbers] = useState(false)
@@ -79,7 +79,7 @@ export function AddPhoneNumberForm({ onSuccess }: AddPhoneNumberFormProps) {
 
     setLoadingNumbers(true)
     try {
-      const response = await fetch('/api/phone-numbers/twilio/available', {
+      const response = await fetch(`/api/${slug}/phone-numbers/twilio/available`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ export function AddPhoneNumberForm({ onSuccess }: AddPhoneNumberFormProps) {
         (num) => num.phoneNumber === values.selectedNumber
       )
 
-      const response = await fetch('/api/phone-numbers', {
+      const response = await fetch(`/api/${slug}/phone-numbers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

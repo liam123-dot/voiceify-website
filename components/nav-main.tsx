@@ -2,6 +2,7 @@
 
 import { type Icon } from "@tabler/icons-react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 import {
   SidebarGroup,
@@ -20,20 +21,33 @@ export function NavMain({
     icon?: Icon
   }[]
 }) {
+  const pathname = usePathname()
+  
   return (
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title} asChild>
-                <Link href={item.url} prefetch={true}>
-                  {item.icon && <item.icon />}
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {items.map((item) => {
+            // Check if this is the root dashboard (e.g., /clearsky)
+            const isRootDashboard = item.url.split('/').length === 2
+            
+            // For root dashboard, only match exact pathname
+            // For other pages, match exact or any subpaths
+            const isActive = isRootDashboard
+              ? pathname === item.url
+              : pathname === item.url || pathname.startsWith(`${item.url}/`)
+            
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton tooltip={item.title} isActive={isActive} asChild>
+                  <Link href={item.url} prefetch={true}>
+                    {item.icon && <item.icon />}
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

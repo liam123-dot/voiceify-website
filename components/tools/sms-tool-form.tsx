@@ -17,7 +17,11 @@ interface PhoneNumber {
   provider: string
 }
 
-export function SmsToolForm({ initialData, onChange }: ToolFormProps<SmsToolConfig>) {
+interface SmsToolFormProps extends ToolFormProps<SmsToolConfig> {
+  slug: string
+}
+
+export function SmsToolForm({ initialData, onChange, slug }: SmsToolFormProps) {
   // Phone number state
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([])
   const [loadingPhoneNumbers, setLoadingPhoneNumbers] = useState(true)
@@ -68,7 +72,7 @@ export function SmsToolForm({ initialData, onChange }: ToolFormProps<SmsToolConf
   useEffect(() => {
     const loadPhoneNumbers = async () => {
       try {
-        const response = await fetch('/api/phone-numbers')
+        const response = await fetch(`/api/${slug}/phone-numbers`)
         const data = await response.json()
         
         if (response.ok) {
@@ -82,7 +86,7 @@ export function SmsToolForm({ initialData, onChange }: ToolFormProps<SmsToolConf
     }
     
     loadPhoneNumbers()
-  }, [])
+  }, [slug])
 
   // Update parent whenever configuration changes
   useEffect(() => {

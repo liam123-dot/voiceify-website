@@ -1,7 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getAuthSession } from '@/lib/auth'
-import ragie from '@/lib/ragie/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +53,7 @@ export async function GET(
 }
 
 // DELETE - Delete a knowledge base
-// This will also delete all items, agent associations, and Ragie documents
+// This will also delete all items, agent associations, and document embeddings (CASCADE)
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ slug: string; id: string }> }
@@ -82,10 +81,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
     }
 
-    // Fetch all items to delete from Ragie and Supabase storage
+    // Fetch all items to delete files from Supabase storage
     const { data: items, error: itemsError } = await supabase
       .from('knowledge_base_items')
-      .select('id, ragie_document_id, file_location, type')
+      .select('id, file_location, type')
       .eq('knowledge_base_id', id)
 
     if (itemsError) {
@@ -93,16 +92,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to fetch items for deletion' }, { status: 500 })
     }
 
-    // Delete items from Ragie (if they have ragie_document_id)
+    // Delete files from Supabase storage
     const deletePromises = (items || []).map(async (item) => {
       try {
-        if (item.ragie_document_id) {
-          await ragie.documents.delete({
-            documentId: item.ragie_document_id,
-            partition: organizationId,
-          })
-        }
-
         // Delete file from Supabase storage if it's a file type
         if (item.type === 'file' && item.file_location) {
           await supabase.storage
@@ -110,8 +102,8 @@ export async function DELETE(
             .remove([item.file_location])
         }
       } catch (error) {
-        console.error(`Error deleting item ${item.id}:`, error)
-        // Continue with deletion even if Ragie/storage deletion fails
+        console.error(`Error deleting file for item ${item.id}:`, error)
+        // Continue with deletion even if storage deletion fails
       }
     })
 
