@@ -67,7 +67,7 @@ export const STT_MODELS: STTModel[] = [
     id: 'deepgram/flux-general-en',
     name: 'Flux General (English)',
     provider: 'deepgram',
-    inferenceType: 'both',
+    inferenceType: 'direct',
     pricePerHour: 0.462,
     description: 'Recommended for realtime use',
     features: ['High accuracy', 'Low latency', 'English optimized', 'Supports both LiveKit and Direct'],
