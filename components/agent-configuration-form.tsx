@@ -328,7 +328,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
             stt: {
               provider: (values.sttModel?.split('/')[0] || 'deepgram') as 'deepgram' | 'assemblyai' | 'cartesia',
               model: values.sttModel || 'deepgram/nova-3',
-              // AssemblyAI only supports LiveKit Inference, Deepgram Nova-3 supports both
+              // AssemblyAI only supports LiveKit Inference, Deepgram models support both
               inferenceType: values.sttModel?.startsWith('assemblyai/') ? 'livekit' : (values.sttInferenceType || 'livekit'),
               language: 'en',
               keywords: keywords.length > 0 ? keywords : undefined,
@@ -927,8 +927,8 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                     )}
                   />
 
-                  {/* Show inference type selector only for Deepgram Nova-3 */}
-                  {sttModel === 'deepgram/nova-3' && (
+                  {/* Show inference type selector for Deepgram models that support both types */}
+                  {(sttModel === 'deepgram/nova-3' || sttModel === 'deepgram/flux-general-en') && (
                     <FormField
                       control={form.control}
                       name="sttInferenceType"
