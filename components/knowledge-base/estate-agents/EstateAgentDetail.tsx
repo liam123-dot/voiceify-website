@@ -156,7 +156,7 @@ export function EstateAgentDetail({ slug, knowledgeBaseId, estateAgentId }: Esta
               <p className="text-sm text-muted-foreground mt-2">
                 The estate agent you are looking for does not exist or has been deleted.
               </p>
-              <Link href={`/${slug}/knowledge-bases/${knowledgeBaseId}`} className="mt-4 inline-block">
+              <Link href={`/${slug}/knowledge-base/${knowledgeBaseId}`} className="mt-4 inline-block">
                 <Button variant="outline">
                   <IconArrowLeft className="mr-2 h-4 w-4" />
                   Back to Knowledge Base
@@ -177,7 +177,7 @@ export function EstateAgentDetail({ slug, knowledgeBaseId, estateAgentId }: Esta
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Link href={`/${slug}/knowledge-bases/${knowledgeBaseId}`}>
+            <Link href={`/${slug}/knowledge-base/${knowledgeBaseId}`}>
               <Button variant="ghost" size="icon-sm">
                 <IconArrowLeft className="h-4 w-4" />
               </Button>
@@ -298,7 +298,7 @@ export function EstateAgentDetail({ slug, knowledgeBaseId, estateAgentId }: Esta
         <CardHeader>
           <CardTitle>Properties</CardTitle>
           <CardDescription>
-            All properties synced from this estate agent's Rightmove listings
+            All properties synced from this estate agent&apos;s Rightmove listings
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -91,7 +91,7 @@ export function SiteHeader({ slug, isAdmin }: SiteHeaderProps) {
     }
     
     // Check if we're on a knowledge base detail page (e.g., /[slug]/knowledge-base/[id] or /[slug]/knowledge-bases/[id])
-    if (segments.length >= 3 && (segments[1] === 'knowledge-base' || segments[1] === 'knowledge-bases') && slug) {
+    if (segments.length >= 3 && (segments[1] === 'knowledge-base') && slug) {
       const kbId = segments[2]
 
       if (uuidRegex.test(kbId) && !knowledgeBaseNames[kbId] && !loadingKnowledgeBases[kbId]) {
@@ -128,7 +128,7 @@ export function SiteHeader({ slug, isAdmin }: SiteHeaderProps) {
           .then(res => res.json())
           .then(data => {
             if (data.items) {
-              const estateAgent = data.items.find((item: any) => item.id === estateAgentId)
+              const estateAgent = data.items.find((item: { id: string; name: string }) => item.id === estateAgentId)
               if (estateAgent) {
                 setEstateAgentNames(prev => ({ ...prev, [estateAgentId]: estateAgent.name }))
               }

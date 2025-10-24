@@ -100,7 +100,7 @@ export function KnowledgeBaseItemsTable({ slug, knowledgeBaseId }: KnowledgeBase
   const queryClient = useQueryClient()
 
   const handleEstateAgentClick = (itemId: string) => {
-    router.push(`/${slug}/knowledge-bases/${knowledgeBaseId}/estate-agent/${itemId}`)
+    router.push(`/${slug}/knowledge-base/${knowledgeBaseId}/estate-agent/${itemId}`)
   }
 
   // Fetch knowledge base details
