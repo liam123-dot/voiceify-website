@@ -35,8 +35,7 @@ import {
 } from '@/components/ui/collapsible'
 import { toast } from 'sonner'
 import { Loader2, Save, Play, Pause, ChevronDown } from 'lucide-react'
-import type { AgentConfiguration, ToolMessagingConfig } from '@/types/agent-config'
-import { ToolMessagingConfigComponent } from '@/components/tools/tool-messaging-config'
+import type { AgentConfiguration } from '@/types/agent-config'
 import { KeywordsDialog } from '@/components/agent-configuration-form-keywords-dialog'
 
 // Voice interface
@@ -102,6 +101,9 @@ const formSchema = z.object({
   // Knowledge base configuration
   knowledgeBaseUseAsTool: z.boolean().optional(),
   knowledgeBaseMatchCount: z.number().min(1).max(10).optional(),
+
+  // Background noise configuration
+  backgroundNoiseEnabled: z.boolean().optional(),
 }).superRefine((data, ctx) => {
   // Validate realtime fields when pipeline type is realtime
   if (data.pipelineType === 'realtime') {
@@ -197,11 +199,6 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all')
   const [isVoiceListOpen, setIsVoiceListOpen] = useState(false)
   
-  // Knowledge base messaging state
-  const [kbMessaging, setKbMessaging] = useState<ToolMessagingConfig>(
-    initialConfig?.knowledgeBase?.messaging || {}
-  )
-  
   // Keywords management state
   const [keywords, setKeywords] = useState<string[]>(
     initialConfig?.pipeline?.stt?.keywords || []
@@ -248,6 +245,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         // Knowledge base defaults
         knowledgeBaseUseAsTool: false,
         knowledgeBaseMatchCount: 3,
+        backgroundNoiseEnabled: false,
       }
     }
 
@@ -297,6 +295,7 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
       // Knowledge base configuration
       knowledgeBaseUseAsTool: initialConfig.knowledgeBase?.useAsTool ?? false,
       knowledgeBaseMatchCount: initialConfig.knowledgeBase?.matchCount ?? 3,
+      backgroundNoiseEnabled: initialConfig.backgroundNoise?.enabled ?? false,
     }
   }
 
@@ -372,10 +371,6 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
         knowledgeBase: {
           useAsTool: values.knowledgeBaseUseAsTool ?? false,
           matchCount: values.knowledgeBaseMatchCount ?? 3,
-          // Only include messaging if at least one option is enabled
-          ...(kbMessaging && (kbMessaging.beforeExecution || kbMessaging.duringExecution) 
-            ? { messaging: kbMessaging } 
-            : {}),
         },
         tools: [],
         settings: {
@@ -387,6 +382,9 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
           firstMessage: values.firstMessage,
           firstMessagePrompt: values.firstMessagePrompt,
           firstMessageAllowInterruptions: values.firstMessageAllowInterruptions,
+        },
+        backgroundNoise: {
+          enabled: values.backgroundNoiseEnabled ?? false,
         },
       }
 
@@ -987,6 +985,28 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                           LiveKit Inference provides managed, optimized model hosting. Direct uses provider APIs directly.
                         </FormDescription>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Background Noise */}
+                  <FormField
+                    control={form.control}
+                    name="backgroundNoiseEnabled"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Enable Background Noise</FormLabel>
+                          <FormDescription>
+                            Adds ambient sounds like keyboard typing to simulate a realistic office environment
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />
@@ -1732,18 +1752,9 @@ export function AgentConfigurationForm({ agentId, slug, initialConfig, mode = 'c
                     </FormItem>
                   )}
                 />
-                
-                {/* Messaging configuration - only show when using KB as tool */}
-                {form.watch('knowledgeBaseUseAsTool') && (
-                  <div className="pt-4">
-                    <ToolMessagingConfigComponent
-                      value={kbMessaging}
-                      onChange={setKbMessaging}
-                    />
-                  </div>
-                )}
               </CardContent>
             </Card>
+
           </>
         )}
 

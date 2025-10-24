@@ -46,7 +46,7 @@ export interface STTConfig {
   model: string; // LiveKit format: e.g., "deepgram/nova-2-phonecall", "assemblyai/universal-streaming"
   inferenceType?: 'livekit' | 'direct'; // Whether to use LiveKit Inference or direct plugin (default: 'livekit')
   language?: string; // Language code (e.g., "en", "es", "fr")
-  keywords?: string[]; // Array of keywords for improved transcription accuracy
+  keywords?: string[]; // Optional keywords for improved transcription accuracy (Deepgram and AssemblyAI)
   apiKey?: string; // Optional custom API key
 }
 
@@ -138,29 +138,11 @@ export interface AgentTool {
 }
 
 /**
- * Tool messaging configuration (imported from tools.ts for consistency)
- */
-export interface ToolMessagingConfig {
-  beforeExecution?: {
-    enabled: boolean;
-    type: 'say' | 'generate';
-    content: string; // text for 'say', instructions for 'generate'
-  };
-  duringExecution?: {
-    enabled: boolean;
-    type: 'say' | 'generate';
-    content: string; // text for 'say', instructions for 'generate'
-    delay?: number; // milliseconds, default 500
-  };
-}
-
-/**
  * Knowledge base configuration
  */
 export interface KnowledgeBaseConfig {
   useAsTool?: boolean; // Default: false (pre-inject mode). When true, LLM decides when to query via tool call
-  matchCount?: number; // Number of documents to retrieve from knowledge base (default: 3, range: 1-10)
-  messaging?: ToolMessagingConfig; // Optional messaging configuration (only used when useAsTool is true)
+  matchCount?: number; // Default: 3. Number of knowledge base items to match against
 }
 
 /**
@@ -209,6 +191,11 @@ export interface AgentConfiguration {
   
   // Additional settings
   settings?: AgentSettings;
+
+  backgroundNoise: {
+    enabled: boolean
+  }
+
 }
 
 /**
@@ -247,6 +234,9 @@ export const SAMPLE_CONFIGS = {
       enableTranscription: true,
       recordSession: true,
       interruptible: true
+    },
+    backgroundNoise: {
+      enabled: false
     }
   } satisfies AgentConfiguration,
 
@@ -288,6 +278,9 @@ export const SAMPLE_CONFIGS = {
       recordSession: false,
       maxDuration: 3600,
       interruptible: true
+    },
+    backgroundNoise: {
+      enabled: false
     }
   } satisfies AgentConfiguration,
 
@@ -324,6 +317,9 @@ export const SAMPLE_CONFIGS = {
       enableTranscription: true,
       recordSession: true,
       interruptible: false
+    },
+    backgroundNoise: {
+      enabled: false
     }
   } satisfies AgentConfiguration
 };
