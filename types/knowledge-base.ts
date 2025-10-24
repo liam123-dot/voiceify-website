@@ -62,3 +62,52 @@ export interface RightmoveAgentConfig {
   syncSchedule: 'daily' | 'weekly'; // Placeholder for future scheduling feature
 }
 
+// Rightmove Property Metadata Types
+export interface RightmovePropertyMetadata {
+  id: string;
+  url: string;
+  beds?: number;
+  baths?: number;
+  price?: number;
+  title: string;
+  address: string;
+  description?: string;
+  images?: string[];
+  features?: string[];
+  propertyType?: string;
+  propertySubType?: string;
+  primaryPrice?: string;
+  secondaryPrice?: string;
+  addedOn?: string;
+  branch?: {
+    phone?: string;
+    branchId?: number;
+    brandName?: string;
+    branchName?: string;
+    companyName?: string;
+    displayAddress?: string;
+  };
+  tenure?: {
+    tenureType?: string;
+    yearsRemainingOnLease?: number;
+  };
+  nearestStations?: Array<{
+    name: string;
+    distance: number;
+    unit: string;
+  }>;
+  floorplans?: string[];
+  latitude?: number;
+  longitude?: number;
+  livingCosts?: {
+    councilTaxBand?: string;
+    annualServiceCharge?: number;
+    annualGroundRent?: number;
+  };
+  lettings?: {
+    deposit?: number;
+    furnishType?: string;
+    letAvailableDate?: string;
+  };
+}
+
