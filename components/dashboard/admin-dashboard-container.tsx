@@ -56,10 +56,12 @@ interface ConversationEvent {
   call_id: string
   event_type: string
   data: {
-    totalLatency?: number
-    eouDelay?: number
-    llmTtft?: number
-    ttsTtfb?: number
+    data?: {
+      totalLatency?: number
+      eouDelay?: number
+      llmTtft?: number
+      ttsTtfb?: number
+    }
   }
   organization_id: string
   organization_slug: string

@@ -45,10 +45,12 @@ export interface ConversationEvent {
   id: string
   time: string
   data: {
-    totalLatency?: number
-    eouDelay?: number
-    llmTtft?: number
-    ttsTtfb?: number
+    data?: {
+      totalLatency?: number
+      eouDelay?: number
+      llmTtft?: number
+      ttsTtfb?: number
+    }
   }
 }
 
@@ -134,7 +136,7 @@ export function groupConversationLatenciesByWindow(
     const bucketTime = new Date(Math.floor(eventTime.getTime() / bucketMs) * bucketMs)
     const bucketKey = bucketTime.toISOString()
     
-    const latency = event.data?.[latencyField]
+    const latency = event.data?.data?.[latencyField]
     // Convert from seconds to milliseconds for consistency with knowledge latency
     if (latency !== undefined && latency > 0) {
       if (!buckets.has(bucketKey)) {
