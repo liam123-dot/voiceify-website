@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { IconLoader2, IconCopy, IconCheck, IconTrash, IconDownload } from '@tabler/icons-react'
+import { IconLoader2, IconCopy, IconCheck, IconTrash, IconDownload, IconClock } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
@@ -59,7 +59,7 @@ export function ExtractionResults({
         aggregated: AggregatedResults
       }>
     },
-    enabled: extraction.status !== 'pending',
+    // Always enabled to show partial results
     refetchInterval: extraction.status === 'processing' || extraction.status === 'pending' ? 3000 : false,
   })
 
@@ -136,6 +136,31 @@ export function ExtractionResults({
       : 0
 
   const isProcessing = extraction.status === 'processing' || extraction.status === 'pending'
+  
+  // Check if extraction has been running for more than 1 minute
+  const extractionAge = new Date().getTime() - new Date(extraction.created_at).getTime()
+  const isStale = isProcessing && extractionAge > 60_000 && extraction.processed_items === 0
+  
+  // Retry mutation for stale extractions
+  const retryMutation = useMutation({
+    mutationFn: async () => {
+      // Delete the old extraction and trigger a new one
+      await fetch(
+        `/api/${slug}/knowledge-bases/${knowledgeBaseId}/extractions/${extraction.id}`,
+        { method: 'DELETE' }
+      )
+      // The parent component will handle creating a new extraction
+    },
+    onSuccess: () => {
+      toast.success('Extraction cancelled. Please start a new one.')
+      queryClient.invalidateQueries({ queryKey: ['extractions', slug, knowledgeBaseId] })
+      onDelete()
+    },
+    onError: (error) => {
+      console.error('Error cancelling extraction:', error)
+      toast.error('Failed to cancel extraction')
+    },
+  })
 
   return (
     <div className="space-y-6">
@@ -176,28 +201,58 @@ export function ExtractionResults({
         )}
       </div>
 
-      {/* Loading State */}
-      {isLoading && !isProcessing && (
+      {/* Stale Extraction Warning */}
+      {isStale && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <IconClock className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
+                Extraction Taking Longer Than Expected
+              </p>
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                This extraction has been running for over 1 minute with no results. This might indicate an issue.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => retryMutation.mutate()}
+            disabled={retryMutation.isPending}
+            className="w-full"
+          >
+            {retryMutation.isPending ? 'Cancelling...' : 'Cancel & Retry'}
+          </Button>
+        </div>
+      )}
+
+      {/* Initial Loading State (only show if no data yet) */}
+      {isLoading && !data && (
         <div className="flex items-center justify-center py-12">
           <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {/* Processing State */}
-      {isProcessing && (
-        <div className="flex flex-col items-center justify-center py-12 space-y-4">
-          <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <div className="text-center">
-            <p className="text-sm font-medium">Extraction in progress...</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Processing {extraction.processed_items + extraction.failed_items} of {extraction.total_items} properties
-            </p>
+      {/* Processing Banner (show while processing but also show results below) */}
+      {isProcessing && data && data.results.length > 0 && (
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <IconLoader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
+            <div>
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                Extraction in progress...
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+                Showing {data.results.length} of {extraction.total_items} properties processed so far
+              </p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Results */}
-      {!isLoading && !isProcessing && data && (
+      {/* Results - Show as soon as we have any data */}
+      {data && data.results.length > 0 && (
         <>
           {/* Aggregated Results */}
           <div className="space-y-4">

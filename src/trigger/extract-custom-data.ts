@@ -260,6 +260,7 @@ export const extractCustomData = schemaTask({
   queue: {
     concurrencyLimit: 5,
   },
+  maxDuration: 60, // Hard timeout after 1 minute
   retry: {
     maxAttempts: 3,
     factor: 2,
