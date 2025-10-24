@@ -8,6 +8,7 @@ import { ChartBarSegmented } from '@/components/chart-bar-segmented'
 import { ChartAreaDuration } from '@/components/chart-area-duration'
 import { ChartBarDurationSegmented } from '@/components/chart-bar-duration-segmented'
 import { ChartLatencyPercentiles } from '@/components/chart-latency-percentiles'
+import { ChartConversationLatencyPercentiles } from '@/components/chart-conversation-latency-percentiles'
 import { SectionCards } from '@/components/section-cards'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -49,6 +50,25 @@ interface KnowledgeLatencyResponse {
   events: KnowledgeEvent[]
 }
 
+interface ConversationEvent {
+  id: string
+  time: string
+  call_id: string
+  event_type: string
+  data: {
+    totalLatency?: number
+    eouDelay?: number
+    llmTtft?: number
+    ttsTtfb?: number
+  }
+  organization_id: string
+  organization_slug: string
+}
+
+interface ConversationLatencyResponse {
+  events: ConversationEvent[]
+}
+
 // Type for minimal call data used in analytics
 type AnalyticsCall = Pick<Call, 'id' | 'created_at' | 'duration_seconds' | 'status'>
 
@@ -73,6 +93,9 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
   const [bucketSize, setBucketSize] = useState(searchParams.get('bucketSize') || '1h')
   const [lookbackPeriod, setLookbackPeriod] = useState(searchParams.get('lookbackPeriod') || '3d')
   const [selectedLatencyTab, setSelectedLatencyTab] = useState<'overall' | 'supabase' | 'embedding'>('overall')
+  const [conversationBucketSize, setConversationBucketSize] = useState(searchParams.get('convBucketSize') || '1h')
+  const [conversationLookbackPeriod, setConversationLookbackPeriod] = useState(searchParams.get('convLookbackPeriod') || '3d')
+  const [selectedConversationTab, setSelectedConversationTab] = useState<'total' | 'eou' | 'llm' | 'tts'>('total')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleBucketSizeChange = (size: string) => {
@@ -86,6 +109,20 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
     setLookbackPeriod(period)
     const params = new URLSearchParams(searchParams.toString())
     params.set('lookbackPeriod', period)
+    router.push(`?${params.toString()}`, { scroll: false })
+  }
+
+  const handleConversationBucketSizeChange = (size: string) => {
+    setConversationBucketSize(size)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('convBucketSize', size)
+    router.push(`?${params.toString()}`, { scroll: false })
+  }
+
+  const handleConversationLookbackPeriodChange = (period: string) => {
+    setConversationLookbackPeriod(period)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('convLookbackPeriod', period)
     router.push(`?${params.toString()}`, { scroll: false })
   }
 
@@ -123,6 +160,23 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
     staleTime: 60 * 1000, // Consider data fresh for 1 minute
   })
 
+  // Fetch conversation latency data
+  const { data: conversationData, isLoading: isConversationLoading, refetch: refetchConversationLatency } = useQuery<ConversationLatencyResponse>({
+    queryKey: ['admin-conversation-latency', selectedSlug],
+    queryFn: async () => {
+      const url = selectedSlug === 'all' 
+        ? '/api/admin/conversation-latency' 
+        : `/api/admin/conversation-latency?slug=${selectedSlug}`
+      
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error('Failed to fetch conversation latency data')
+      }
+      return response.json()
+    },
+    staleTime: 60 * 1000, // Consider data fresh for 1 minute
+  })
+
   // Reset segmentation when switching away from "All Clients"
   useEffect(() => {
     if (selectedSlug !== 'all') {
@@ -133,13 +187,13 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      await Promise.all([refetchAnalytics(), refetchKnowledgeLatency()])
+      await Promise.all([refetchAnalytics(), refetchKnowledgeLatency(), refetchConversationLatency()])
     } finally {
       setIsRefreshing(false)
     }
   }
 
-  if (isLoading || isKnowledgeLoading) {
+  if (isLoading || isKnowledgeLoading || isConversationLoading) {
     return (
       <div className="px-4 lg:px-6 py-8">
         <div className="text-center text-muted-foreground">
@@ -151,6 +205,7 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
 
   const calls = data?.calls || []
   const knowledgeEvents = knowledgeData?.events || []
+  const conversationEvents = conversationData?.events || []
 
   // Transform calls with org data to regular calls for non-segmented view
   const transformedCalls = calls.map(call => ({
@@ -265,6 +320,17 @@ export function AdminDashboardContainer({ organizations }: AdminDashboardContain
           onBucketSizeChange={handleBucketSizeChange}
           onLookbackPeriodChange={handleLookbackPeriodChange}
           onTabChange={setSelectedLatencyTab}
+        />
+
+        {/* Conversation Latency Percentiles Chart */}
+        <ChartConversationLatencyPercentiles
+          events={conversationEvents}
+          bucketSize={conversationBucketSize}
+          lookbackPeriod={conversationLookbackPeriod}
+          selectedTab={selectedConversationTab}
+          onBucketSizeChange={handleConversationBucketSizeChange}
+          onLookbackPeriodChange={handleConversationLookbackPeriodChange}
+          onTabChange={setSelectedConversationTab}
         />
       </div>
     </div>
