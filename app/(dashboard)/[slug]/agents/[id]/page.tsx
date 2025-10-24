@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { getAuthSession } from "@/lib/auth"
 import { notFound } from "next/navigation"
-import { AgentConfigurationForm } from "@/components/agent-configuration-form"
+import { AgentConfigurationForm } from "@/components/agents/AgentConfigForm/agent-configuration-form"
 import type { AgentConfiguration } from "@/types/agent-config"
 
 type PageProps = {

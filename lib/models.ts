@@ -17,7 +17,7 @@ export type ModelProvider =
   | 'groq'
   | 'cerebras';
 
-export type InferenceType = 'livekit' | 'direct';
+export type InferenceType = 'livekit' | 'direct' | 'both';
 
 // STT Model Definition
 export interface STTModel {
@@ -55,16 +55,6 @@ export interface TTSModel {
   description?: string;
   features?: string[];
   recommended?: boolean;
-  voices?: TTSVoice[];
-}
-
-// Voice Definition for TTS
-export interface TTSVoice {
-  id: string;
-  name: string;
-  description?: string;
-  language?: string;
-  gender?: 'male' | 'female' | 'neutral';
 }
 
 /**
@@ -77,7 +67,7 @@ export const STT_MODELS: STTModel[] = [
     id: 'deepgram/flux-general-en',
     name: 'Flux General (English)',
     provider: 'deepgram',
-    inferenceType: 'direct',
+    inferenceType: 'both',
     pricePerHour: 0.462,
     description: 'Recommended for realtime use',
     features: ['High accuracy', 'Low latency', 'English optimized', 'Supports both LiveKit and Direct'],
@@ -87,7 +77,7 @@ export const STT_MODELS: STTModel[] = [
     id: 'deepgram/nova-3',
     name: 'Nova-3 (Monolingual)',
     provider: 'deepgram',
-    inferenceType: 'livekit',
+    inferenceType: 'both',
     pricePerHour: 0.462,
     description: 'Latest generation speech recognition for single language',
     features: ['High accuracy', 'Low latency', 'English optimized', 'Supports both LiveKit and Direct'],
@@ -226,28 +216,6 @@ export const LLM_MODELS: LLMModel[] = [
     description: 'Compact OpenAI open-weight model via Groq',
     features: ['Fastest inference', '1000 T/sec', 'Cost-effective', 'Open source'],
   },
-  // Baseten Models
-  {
-    id: 'baseten/openai/gpt-oss-120b',
-    name: 'GPT-OSS 120B',
-    provider: 'baseten',
-    inferenceType: 'direct',
-    inputPricePerMillion: 0.10,
-    outputPricePerMillion: 0.50,
-    description: 'OpenAI\'s flagship open-weight model via Baseten',
-    features: ['High capability', 'Open source', '120B parameters'],
-  },
-  // Cerebras Models
-  {
-    id: 'cerebras/openai/gpt-oss-120b',
-    name: 'GPT-OSS 120B',
-    provider: 'cerebras',
-    inferenceType: 'direct',
-    inputPricePerMillion: 0.35,
-    outputPricePerMillion: 0.75,
-    description: 'OpenAI\'s flagship open-weight model via Cerebras',
-    features: ['High capability', 'Open source', '120B parameters'],
-  },
   // Google Gemini Models
   {
     id: 'google/gemini-2.5-pro',
@@ -303,181 +271,19 @@ export const LLM_MODELS: LLMModel[] = [
 
 /**
  * TTS Models - Text-to-Speech
- * Source: https://livekit.io/pricing/inference#tts
+ * Note: TTS voices are now fetched directly from ElevenLabs API.
+ * This array maintains a single entry for backward compatibility with pricing calculations.
  */
 export const TTS_MODELS: TTSModel[] = [
-  // Cartesia
-  {
-    id: 'cartesia/sonic',
-    name: 'Sonic',
-    provider: 'cartesia',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 50,
-    description: 'High-quality conversational voice',
-    features: ['Natural', 'Low latency', 'Expressive'],
-    voices: [
-      { id: 'default', name: 'Default', description: 'Natural conversational voice' },
-    ],
-  },
-  {
-    id: 'cartesia/sonic-2',
-    name: 'Sonic 2',
-    provider: 'cartesia',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 50,
-    description: 'Next generation Sonic voice',
-    features: ['Improved quality', 'Natural', 'Fast'],
-    voices: [
-      { id: 'default', name: 'Default', description: 'Enhanced natural voice' },
-    ],
-  },
-  {
-    id: 'cartesia/sonic-turbo',
-    name: 'Sonic Turbo',
-    provider: 'cartesia',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 50,
-    description: 'Fastest Sonic variant',
-    features: ['Ultra-low latency', 'Fast', 'Natural'],
-    voices: [
-      { id: 'default', name: 'Default', description: 'Fast natural voice' },
-    ],
-  },
-  // ElevenLabs
-  {
-    id: 'elevenlabs/eleven_flash_v2',
-    name: 'Eleven Flash v2',
-    provider: 'elevenlabs',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 150,
-    description: 'Fast, high-quality voice synthesis',
-    features: ['High quality', 'Fast', 'Expressive'],
-    recommended: true,
-    voices: [
-      { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Warm female voice', gender: 'female' },
-      { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', description: 'Professional female voice', gender: 'female' },
-      { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', description: 'Strong female voice', gender: 'female' },
-      { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', description: 'Friendly male voice', gender: 'male' },
-      { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', description: 'Young female voice', gender: 'female' },
-      { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', description: 'Deep male voice', gender: 'male' },
-    ],
-  },
   {
     id: 'elevenlabs/eleven_flash_v2_5',
     name: 'Eleven Flash v2.5',
     provider: 'elevenlabs',
-    inferenceType: 'livekit',
+    inferenceType: 'direct',
     pricePerMillionChars: 99,
     description: 'Latest flash model with improved quality',
     features: ['Latest generation', 'High quality', 'Fast'],
-    voices: [
-      { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Warm female voice', gender: 'female' },
-      { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', description: 'Professional female voice', gender: 'female' },
-      { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', description: 'Strong female voice', gender: 'female' },
-      { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', description: 'Friendly male voice', gender: 'male' },
-      { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', description: 'Young female voice', gender: 'female' },
-      { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', description: 'Deep male voice', gender: 'male' },
-    ],
-  },
-  {
-    id: 'elevenlabs/eleven_turbo_v2',
-    name: 'Eleven Turbo v2',
-    provider: 'elevenlabs',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 150,
-    description: 'Ultra-low latency voice synthesis',
-    features: ['Ultra-fast', 'High quality', 'Real-time'],
-    voices: [
-      { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Warm female voice', gender: 'female' },
-      { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', description: 'Professional female voice', gender: 'female' },
-      { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', description: 'Strong female voice', gender: 'female' },
-      { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', description: 'Friendly male voice', gender: 'male' },
-      { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', description: 'Young female voice', gender: 'female' },
-      { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', description: 'Deep male voice', gender: 'male' },
-    ],
-  },
-  {
-    id: 'elevenlabs/eleven_turbo_v2_5',
-    name: 'Eleven Turbo v2.5',
-    provider: 'elevenlabs',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 150,
-    description: 'Latest turbo model with improved latency',
-    features: ['Latest generation', 'Ultra-fast', 'High quality'],
-    voices: [
-      { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Warm female voice', gender: 'female' },
-      { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', description: 'Professional female voice', gender: 'female' },
-      { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', description: 'Strong female voice', gender: 'female' },
-      { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', description: 'Friendly male voice', gender: 'male' },
-      { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', description: 'Young female voice', gender: 'female' },
-      { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', description: 'Deep male voice', gender: 'male' },
-    ],
-  },
-  {
-    id: 'elevenlabs/eleven_multilingual_v2',
-    name: 'Eleven Multilingual v2',
-    provider: 'elevenlabs',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 300,
-    description: 'Multi-language support with high quality',
-    features: ['Multi-language', 'High quality', 'Natural'],
-    voices: [
-      { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Warm female voice', gender: 'female' },
-      { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', description: 'Professional female voice', gender: 'female' },
-    ],
-  },
-  // Inworld
-  {
-    id: 'inworld/inworld-tts-1',
-    name: 'Inworld TTS 1',
-    provider: 'inworld',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 5,
-    description: 'Affordable natural conversational voice',
-    features: ['Most affordable', 'Natural', 'Conversational'],
-    voices: [
-      { id: 'Olivia', name: 'Olivia', description: 'Natural female voice', gender: 'female' },
-      { id: 'Michael', name: 'Michael', description: 'Natural male voice', gender: 'male' },
-      { id: 'Emma', name: 'Emma', description: 'Friendly female voice', gender: 'female' },
-      { id: 'James', name: 'James', description: 'Professional male voice', gender: 'male' },
-    ],
-  },
-  // Rime
-  {
-    id: 'rime/arcana',
-    name: 'Arcana',
-    provider: 'rime',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 50,
-    description: 'Rime\'s high-quality voice model',
-    features: ['High quality', 'Natural', 'Expressive'],
-    voices: [
-      { id: 'default', name: 'Default', description: 'Natural voice' },
-    ],
-  },
-  {
-    id: 'rime/mistv2',
-    name: 'Mist v2',
-    provider: 'rime',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 50,
-    description: 'Enhanced Mist model',
-    features: ['Enhanced quality', 'Natural', 'Fast'],
-    voices: [
-      { id: 'default', name: 'Default', description: 'Natural voice' },
-    ],
-  },
-  {
-    id: 'rime/mist',
-    name: 'Mist',
-    provider: 'rime',
-    inferenceType: 'livekit',
-    pricePerMillionChars: 50,
-    description: 'Original Mist voice model',
-    features: ['Proven quality', 'Natural', 'Reliable'],
-    voices: [
-      { id: 'default', name: 'Default', description: 'Natural voice' },
-    ],
+    recommended: true,
   },
 ];
 
@@ -502,26 +308,12 @@ export function getLLMModelsByProvider(provider: ModelProvider): LLMModel[] {
   return LLM_MODELS.filter(model => model.provider === provider);
 }
 
-export function getTTSModelsByProvider(provider: ModelProvider): TTSModel[] {
-  return TTS_MODELS.filter(model => model.provider === provider);
-}
-
 export function getRecommendedSTTModel(): STTModel {
   return STT_MODELS.find(model => model.recommended) || STT_MODELS[0];
 }
 
 export function getRecommendedLLMModel(): LLMModel {
   return LLM_MODELS.find(model => model.recommended) || LLM_MODELS[0];
-}
-
-export function getRecommendedTTSModel(): TTSModel {
-  return TTS_MODELS.find(model => model.recommended) || TTS_MODELS[0];
-}
-
-// Get voice by ID for a specific TTS model
-export function getTTSVoice(modelId: string, voiceId: string): TTSVoice | undefined {
-  const model = getTTSModel(modelId);
-  return model?.voices?.find(voice => voice.id === voiceId);
 }
 
 // Extract provider from LiveKit model ID (e.g., "openai/gpt-4o-mini" -> "openai")
