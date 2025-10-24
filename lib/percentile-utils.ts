@@ -41,6 +41,17 @@ export interface KnowledgeEvent {
   }
 }
 
+export interface ConversationEvent {
+  id: string
+  time: string
+  data: {
+    totalLatency?: number
+    eouDelay?: number
+    llmTtft?: number
+    ttsTtfb?: number
+  }
+}
+
 export const BUCKET_SIZES: Record<string, { minutes: number; label: string }> = {
   '5min': { minutes: 5, label: '5 minutes' },
   '15min': { minutes: 15, label: '15 minutes' },
@@ -90,6 +101,47 @@ export function groupLatenciesByWindow(
         buckets.set(bucketKey, [])
       }
       buckets.get(bucketKey)!.push(latency)
+    }
+  })
+  
+  return buckets
+}
+
+export function groupConversationLatenciesByWindow(
+  events: ConversationEvent[],
+  bucketSize: string,
+  lookbackPeriod: string,
+  latencyField: 'totalLatency' | 'eouDelay' | 'llmTtft' | 'ttsTtfb'
+): Map<string, number[]> {
+  const bucket = BUCKET_SIZES[bucketSize] || BUCKET_SIZES['5min']
+  const period = LOOKBACK_PERIODS[lookbackPeriod] || LOOKBACK_PERIODS['12h']
+  const now = new Date()
+  const startTime = new Date(now.getTime() - period.hours * 60 * 60 * 1000)
+  
+  // Create buckets
+  const buckets = new Map<string, number[]>()
+  const bucketMs = bucket.minutes * 60 * 1000
+  
+  // Filter events within time window
+  const filteredEvents = events.filter(event => {
+    const eventTime = new Date(event.time)
+    return eventTime >= startTime && eventTime <= now
+  })
+  
+  // Group events into buckets
+  filteredEvents.forEach(event => {
+    const eventTime = new Date(event.time)
+    const bucketTime = new Date(Math.floor(eventTime.getTime() / bucketMs) * bucketMs)
+    const bucketKey = bucketTime.toISOString()
+    
+    const latency = event.data?.[latencyField]
+    // Convert from seconds to milliseconds for consistency with knowledge latency
+    if (latency !== undefined && latency > 0) {
+      if (!buckets.has(bucketKey)) {
+        buckets.set(bucketKey, [])
+      }
+      // Store as milliseconds for display consistency
+      buckets.get(bucketKey)!.push(latency * 1000)
     }
   })
   
