@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import { Loader2, Plus, Minus } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 // Types for product creation
@@ -63,6 +63,7 @@ export default function CreateNewProduct() {
     // Economic breakdown state - store as string for better input handling
     const [averageCostPerMinuteInput, setAverageCostPerMinuteInput] = useState('')
     const [minutesUsed, setMinutesUsed] = useState([0])
+    const [isUnlimited, setIsUnlimited] = useState(false)
     
     // Convert string inputs to numbers for calculations
     const basePriceDollars = parseFloat(displayPrices.base_price_dollars) || 0
@@ -138,6 +139,14 @@ export default function CreateNewProduct() {
         }
     }
 
+    const handleIncreaseMinutes = () => {
+        setMinutesUsed([currentMinutesUsed + 10])
+    }
+
+    const handleDecreaseMinutes = () => {
+        setMinutesUsed([Math.max(0, currentMinutesUsed - 10)])
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         
@@ -171,6 +180,7 @@ export default function CreateNewProduct() {
             })
             setAverageCostPerMinuteInput('')
             setMinutesUsed([0])
+            setIsUnlimited(false)
         } catch (error) {
             console.error('Error creating product:', error)
             if (error instanceof Error) {
@@ -414,19 +424,78 @@ export default function CreateNewProduct() {
                                         </div>
                                     </div>
                                     
-                                    <div className="space-y-2">
-                                        <Slider
-                                            value={minutesUsed}
-                                            onValueChange={setMinutesUsed}
-                                            max={Math.max(formData.minutes_included * 2, 100)}
-                                            step={1}
-                                            className="w-full"
+                                    {/* Unlimited Minutes Toggle */}
+                                    <div className="flex items-center space-x-2 py-2">
+                                        <input
+                                            id="unlimited"
+                                            type="checkbox"
+                                            checked={isUnlimited}
+                                            onChange={(e) => {
+                                                setIsUnlimited(e.target.checked)
+                                                // Reset to included minutes when toggling
+                                                setMinutesUsed([formData.minutes_included])
+                                            }}
+                                            disabled={isCreating}
+                                            className="h-4 w-4 rounded border border-input"
                                         />
-                                        <div className="flex justify-between text-xs text-muted-foreground">
-                                            <span>0</span>
-                                            <span>{Math.max(formData.minutes_included * 2, 100).toLocaleString()}</span>
-                                        </div>
+                                        <Label htmlFor="unlimited" className="text-sm font-medium cursor-pointer">Unlimited minutes</Label>
                                     </div>
+
+                                    {isUnlimited ? (
+                                        // Unlimited minutes - show increment/decrement buttons
+                                        <div className="space-y-2">
+                                            <div className="flex gap-2 items-center justify-between">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleDecreaseMinutes}
+                                                    disabled={isCreating || currentMinutesUsed === 0}
+                                                    className="flex-1"
+                                                >
+                                                    <Minus className="h-4 w-4" />
+                                                </Button>
+                                                <div className="text-center flex-1">
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        value={currentMinutesUsed}
+                                                        onChange={(e) => setMinutesUsed([Math.max(0, parseInt(e.target.value) || 0)])}
+                                                        disabled={isCreating}
+                                                        className="text-center text-lg font-bold"
+                                                    />
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleIncreaseMinutes}
+                                                    disabled={isCreating}
+                                                    className="flex-1"
+                                                >
+                                                    <Plus className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                            <div className="text-xs text-muted-foreground text-center">
+                                                Adjust with buttons or type directly
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        // Limited minutes - show slider
+                                        <div className="space-y-2">
+                                            <Slider
+                                                value={minutesUsed}
+                                                onValueChange={setMinutesUsed}
+                                                max={Math.max(formData.minutes_included * 2, 100)}
+                                                step={1}
+                                                className="w-full"
+                                            />
+                                            <div className="flex justify-between text-xs text-muted-foreground">
+                                                <span>0</span>
+                                                <span>{Math.max(formData.minutes_included * 2, 100).toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Unit Economics */}
                                     <div className="p-2 bg-muted/30 rounded-lg border">

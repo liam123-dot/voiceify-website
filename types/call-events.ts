@@ -64,6 +64,12 @@ export interface TransferSuccessEventData {
 // Agent Session Events
 // ============================================
 
+export interface RecordingStartedEventData {
+  egressId: string;
+  startedAtUnixMs: number;
+  recordingFilename: string;
+}
+
 export interface ConversationItemAddedEventData {
   role: 'user' | 'assistant' | 'system';
   textContent: string;
@@ -113,12 +119,120 @@ export interface SpeechCreatedEventData {
   source: string;
   userInitiated: boolean;
   offsetMs: number;
+  text?: string;
+  speechId?: string;
+  transcription?: {
+    text: string | null;
+  };
+  words?: Array<{
+    word: string;
+    startTime: number | null;
+    endTime: number | null;
+  }>;
 }
 
+export interface LatencyStats {
+  min: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  avg: number;
+  max: number;
+  count: number;
+}
+
+export interface SpeechLatencyBreakdown {
+  speechId: string;
+  eou: number | null;
+  rag: number | null;
+  llm: number | null;
+  tts: number | null;
+  total: number;
+}
+
+export interface CallLatencyStatsEventData {
+  eou: LatencyStats | null;
+  llm: LatencyStats | null;
+  tts: LatencyStats | null;
+  rag: LatencyStats | null;
+  total: LatencyStats | null;
+  speechParts: SpeechLatencyBreakdown[];
+}
+
+// ============================================
+// Structured Metrics Types
+// ============================================
+
+export interface EOUMetrics {
+  metricType: 'eou';
+  endOfUtteranceDelay: number;
+  transcriptionDelay: number;
+  onUserTurnCompletedDelay: number;
+  speechId: string;
+}
+
+export interface STTMetrics {
+  metricType: 'stt';
+  audioDuration: number;
+  duration: number;
+  streamed: boolean;
+}
+
+export interface LLMMetrics {
+  metricType: 'llm';
+  duration: number;
+  completionTokens: number;
+  promptTokens: number;
+  promptCachedTokens: number;
+  ttft: number;
+  tokensPerSecond: number;
+  speechId: string;
+  totalTokens: number;
+}
+
+export interface TTSMetrics {
+  metricType: 'tts';
+  audioDuration: number;
+  charactersCount: number;
+  duration: number;
+  ttfb: number;
+  speechId: string;
+  streamed: boolean;
+}
+
+export interface VADMetrics {
+  metricType: 'vad';
+  idleTime: number;
+  inferenceCount: number;
+  inferenceDurationTotal: number;
+  label?: string | null;
+}
+
+export interface TotalLatencyMetrics {
+  metricType: 'total_latency';
+  speechId: string;
+  totalLatency: number;
+  eouDelay: number;
+  llmTtft: number;
+  ttsTtfb: number;
+}
+
+export interface UnknownMetrics {
+  metricType: 'unknown';
+  typeName: string;
+  [key: string]: any;
+}
+
+export type MetricsData = EOUMetrics | STTMetrics | LLMMetrics | TTSMetrics | VADMetrics | TotalLatencyMetrics | UnknownMetrics;
+
 export interface MetricsCollectedEventData {
-  metricsType: string;
-  metrics: Record<string, any>;
+  metricsType?: string; // Legacy field
+  metrics?: Record<string, any>; // Legacy field
   offsetMs?: number;
+  // New structured format (union type allows either old or new format)
+  metricType?: string;
+  // All fields from structured metrics types
+  [key: string]: any;
 }
 
 // ============================================
@@ -205,6 +319,7 @@ export type CallEventType =
   | 'room_connected'
   // Agent session events
   | 'session_start'
+  | 'recording_started'
   | 'conversation_item_added'
   | 'user_input_transcribed'
   | 'function_tools_executed'
@@ -212,9 +327,13 @@ export type CallEventType =
   | 'user_state_changed'
   | 'speech_created'
   | 'metrics_collected'
+  | 'total_latency'
+  | 'knowledge_retrieved'
+  | 'knowledge_retrieved_with_speech'
   // Summary events
   | 'session_complete'
-  | 'transcript';
+  | 'transcript'
+  | 'call_latency_stats';
 
 export type CallEventData =
   | CallIncomingEventData
@@ -225,6 +344,7 @@ export type CallEventData =
   | TransferNoAnswerEventData
   | TransferFailedEventData
   | TransferSuccessEventData
+  | RecordingStartedEventData
   | ConversationItemAddedEventData
   | UserInputTranscribedEventData
   | FunctionToolsExecutedEventData

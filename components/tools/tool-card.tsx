@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -52,7 +53,6 @@ interface ToolCardProps {
 
 export function ToolCard({
   tool,
-  variant = 'default',
   showEdit = false,
   showDelete = false,
   showAdd = false,
@@ -207,10 +207,11 @@ export function ToolCard({
                 <div className="mt-0.5 flex-shrink-0">
                   {appInfo?.appImgSrc ? (
                     <div className="p-2 rounded-lg bg-muted border">
-                      <img
+                      <Image
                         src={appInfo.appImgSrc}
-                        alt={appInfo.appName}
-                        className="size-5"
+                        alt={appInfo.appName || 'App'}
+                        width={20}
+                        height={20}
                       />
                     </div>
                   ) : (

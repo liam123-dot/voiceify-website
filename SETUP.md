@@ -1,4 +1,4 @@
-# Voiceify Setup Guide
+# Clearsky AI Setup Guide
 
 ## Prerequisites
 
@@ -23,6 +23,12 @@ npm install
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# Knowledge Base & Embeddings (for AI context)
+OPENROUTER_API_KEY=your_openrouter_api_key  # For contextual retrieval
+VOYAGE_API_KEY=your_voyage_api_key          # For embeddings
+FIRECRAWL_API_KEY=your_firecrawl_api_key    # For URL scraping
 ```
 
 ### 3. Create Database Tables
@@ -56,10 +62,16 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 - **Calls** (`/app/calls`) - View and manage calls
 - **Agents** (`/app/agents`) - Manage AI voice agents
 
+### Knowledge Base (Advanced)
+- **Contextual Retrieval** - Implements Anthropic's research for 49% better retrieval accuracy
+- Supports URLs, text content, and files
+- Automatic chunking and embedding with context
+- See `docs/contextual-retrieval.md` for detailed information
+
 ## Project Structure
 
 ```
-voiceify/
+Clearsky AI/
 ├── app/
 │   ├── (dashboard)/          # Protected dashboard routes
 │   │   ├── layout.tsx        # Dashboard layout with sidebar

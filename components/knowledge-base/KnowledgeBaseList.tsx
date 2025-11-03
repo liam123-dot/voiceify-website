@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { IconDatabase, IconLoader2, IconPlus, IconTrash } from "@tabler/icons-react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Empty,
   EmptyContent,
@@ -33,12 +34,18 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 
+interface AgentInfo {
+  id: string
+  name: string
+}
+
 interface KnowledgeBase {
   id: string
   name: string
   description: string | null
   created_at: string
   updated_at: string
+  agents: AgentInfo[]
 }
 
 interface KnowledgeBaseListProps {
@@ -53,7 +60,7 @@ export function KnowledgeBaseList({ slug }: KnowledgeBaseListProps) {
   const [knowledgeBaseToDelete, setKnowledgeBaseToDelete] = useState<KnowledgeBase | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const fetchKnowledgeBases = async () => {
+  const fetchKnowledgeBases = useCallback(async () => {
     try {
       setIsLoading(true)
       const response = await fetch(`/api/${slug}/knowledge-bases`)
@@ -64,11 +71,11 @@ export function KnowledgeBaseList({ slug }: KnowledgeBaseListProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [slug])
 
   useEffect(() => {
     fetchKnowledgeBases()
-  }, [slug])
+  }, [fetchKnowledgeBases])
 
   const handleDeleteClick = (kb: KnowledgeBase, e: React.MouseEvent) => {
     e.preventDefault()
@@ -106,8 +113,49 @@ export function KnowledgeBaseList({ slug }: KnowledgeBaseListProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-10 w-48" />
+        </div>
+        <div className="rounded-lg border overflow-hidden">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-12"></TableHead>
+                <TableHead className="font-semibold">Name</TableHead>
+                <TableHead className="font-semibold">Description</TableHead>
+                <TableHead className="font-semibold">Agents</TableHead>
+                <TableHead className="font-semibold">Created</TableHead>
+                <TableHead className="text-right font-semibold w-12"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...Array(3)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell className="text-center">
+                    <Skeleton className="h-4 w-4 mx-auto" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-48" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Skeleton className="h-8 w-8 ml-auto" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     )
   }
@@ -147,46 +195,87 @@ export function KnowledgeBaseList({ slug }: KnowledgeBaseListProps) {
             Create Knowledge Base
           </Button>
         </div>
-        <div className="rounded-md border">
+        <div className="rounded-lg border overflow-hidden">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-12"></TableHead>
+                <TableHead className="font-semibold">Name</TableHead>
+                <TableHead className="font-semibold">Description</TableHead>
+                <TableHead className="font-semibold">Agents</TableHead>
+                <TableHead className="font-semibold">Created</TableHead>
+                <TableHead className="text-right font-semibold w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {knowledgeBases.map((kb) => (
-                <TableRow key={kb.id}>
-                  <TableCell className="font-medium">
-                    <Link 
-                      href={`/${slug}/knowledge-base/${kb.id}`} 
-                      className="hover:underline flex items-center gap-2"
-                      prefetch={true}
-                    >
-                      <IconDatabase className="h-4 w-4" />
-                      {kb.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-md truncate">
-                    {kb.description || '—'}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(kb.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => handleDeleteClick(kb, e)}
-                    >
-                      <IconTrash className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {knowledgeBases.map((kb) => {
+                const agentCount = kb.agents?.length || 0
+                
+                return (
+                  <TableRow 
+                    key={kb.id}
+                    className="hover:bg-muted/30 cursor-pointer group"
+                    onClick={() => router.push(`/${slug}/knowledge-base/${kb.id}`)}
+                  >
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center text-muted-foreground">
+                        <IconDatabase className="h-4 w-4" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{kb.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground line-clamp-1">
+                        {kb.description || '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {agentCount === 0 ? (
+                          <span className="text-sm text-muted-foreground opacity-50">
+                            No agents
+                          </span>
+                        ) : agentCount <= 2 ? (
+                          kb.agents.map((agent) => (
+                            <Badge
+                              key={agent.id}
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              {agent.name}
+                            </Badge>
+                          ))
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            {agentCount} agents
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(kb.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        disabled={isDeleting}
+                        onClick={(e) => handleDeleteClick(kb, e)}
+                      >
+                        {isDeleting && knowledgeBaseToDelete?.id === kb.id ? (
+                          <IconLoader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <IconTrash className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>

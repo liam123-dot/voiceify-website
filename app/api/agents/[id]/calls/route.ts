@@ -8,6 +8,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    
     const agentId = id;
     const payload = await request.json();
 
@@ -161,6 +162,17 @@ export async function POST(
         .eq('id', callRecord.id);
 
       console.log(`✅ Call marked as completed (duration: ${updates.duration_seconds}s)`);
+
+      // Calculate and store latency statistics
+      try {
+        console.log('📊 Calculating and saving latency statistics...');
+        
+        // Import and use the shared calculation function
+        const { calculateLatencyStats } = await import('@/app/api/[slug]/calls/[callId]/latency-stats/route');
+        await calculateLatencyStats(callRecord.id, supabase, { saveToDatabase: true });
+      } catch (error) {
+        console.error('Error calculating latency statistics:', error);
+      }
     }
 
     // Handle transcript event - store the full transcript and mark call as completed

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -48,7 +49,7 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
   const [unassigningToolId, setUnassigningToolId] = useState<string | null>(null)
 
   // Fetch tools
-  const fetchTools = async () => {
+  const fetchTools = useCallback(async () => {
     try {
       setIsLoading(true)
 
@@ -97,17 +98,24 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [agentId, slug])
 
   useEffect(() => {
     fetchTools()
-  }, [agentId])
+  }, [fetchTools])
 
   // Assign a tool to the agent
   const handleAssignTool = async (toolId: string) => {
-    try {
-      setAssigningToolId(toolId)
+    // Find the tool to assign
+    const toolToAssign = availableTools.find(t => t.id === toolId)
+    if (!toolToAssign) return
 
+    // Optimistically update the UI
+    setAvailableTools(prev => prev.filter(t => t.id !== toolId))
+    setAssignedTools(prev => [...prev, toolToAssign])
+    setAssigningToolId(toolId)
+
+    try {
       const response = await fetch(`/api/${slug}/agents/${agentId}/tools/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,13 +125,18 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
       const data = await response.json()
 
       if (!data.success) {
+        // Revert optimistic update
+        setAssignedTools(prev => prev.filter(t => t.id !== toolId))
+        setAvailableTools(prev => [...prev, toolToAssign])
         toast.error(data.error || 'Failed to assign tool')
         return
       }
 
       toast.success('Tool assigned successfully')
-      fetchTools() // Refresh the lists
     } catch (error) {
+      // Revert optimistic update
+      setAssignedTools(prev => prev.filter(t => t.id !== toolId))
+      setAvailableTools(prev => [...prev, toolToAssign])
       console.error('Error assigning tool:', error)
       toast.error('Failed to assign tool')
     } finally {
@@ -133,9 +146,16 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
 
   // Unassign a tool from the agent
   const handleUnassignTool = async (toolId: string) => {
-    try {
-      setUnassigningToolId(toolId)
+    // Find the tool to unassign
+    const toolToUnassign = assignedTools.find(t => t.id === toolId)
+    if (!toolToUnassign) return
 
+    // Optimistically update the UI
+    setAssignedTools(prev => prev.filter(t => t.id !== toolId))
+    setAvailableTools(prev => [...prev, toolToUnassign])
+    setUnassigningToolId(toolId)
+
+    try {
       const response = await fetch(`/api/${slug}/agents/${agentId}/tools/unassign`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -145,13 +165,18 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
       const data = await response.json()
 
       if (!data.success) {
+        // Revert optimistic update
+        setAvailableTools(prev => prev.filter(t => t.id !== toolId))
+        setAssignedTools(prev => [...prev, toolToUnassign])
         toast.error(data.error || 'Failed to unassign tool')
         return
       }
 
       toast.success('Tool unassigned successfully')
-      fetchTools() // Refresh the lists
     } catch (error) {
+      // Revert optimistic update
+      setAvailableTools(prev => prev.filter(t => t.id !== toolId))
+      setAssignedTools(prev => [...prev, toolToUnassign])
       console.error('Error unassigning tool:', error)
       toast.error('Failed to unassign tool')
     } finally {
@@ -161,13 +186,59 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="space-y-2">
+              <div className="h-6 w-36 bg-accent animate-pulse rounded-md" />
+              <div className="h-4 w-64 bg-accent animate-pulse rounded-md" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <div className="p-4 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-4 border-b pb-3 last:border-b-0">
+                    <div className="h-5 w-5 bg-accent animate-pulse rounded-md" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-5 w-32 bg-accent animate-pulse rounded-md" />
+                      <div className="h-4 w-24 bg-accent animate-pulse rounded-md" />
+                    </div>
+                    <div className="h-9 w-24 bg-accent animate-pulse rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-6 w-36 bg-accent animate-pulse rounded-md" />
+                <div className="h-4 w-64 bg-accent animate-pulse rounded-md" />
+              </div>
+              <div className="h-9 w-28 bg-accent animate-pulse rounded-md" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <div className="p-4 space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-4 border-b pb-3 last:border-b-0">
+                    <div className="h-5 w-5 bg-accent animate-pulse rounded-md" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-5 w-32 bg-accent animate-pulse rounded-md" />
+                      <div className="h-4 w-24 bg-accent animate-pulse rounded-md" />
+                    </div>
+                    <div className="h-9 w-24 bg-accent animate-pulse rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
@@ -177,10 +248,12 @@ export function AgentTools({ agentId, slug }: AgentToolsProps) {
 
     if (tool.type === 'pipedream_action' && pipedreamMetadata?.appImgSrc) {
       return (
-        <img
+        <Image
           src={pipedreamMetadata.appImgSrc as string}
           alt={(pipedreamMetadata.appName as string) || 'App'}
           className="h-5 w-5 rounded object-cover"
+          width={20}
+          height={20}
         />
       )
     }

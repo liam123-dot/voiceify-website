@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react"
+import Image from 'next/image'
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, XCircle, AlertCircle, Trash2, Loader2, ChevronDown, Key } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -186,10 +187,12 @@ export function CredentialsList({ slug }: CredentialsListProps) {
                     className="w-full flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
                   >
                     {firstAccount.app?.imgSrc ? (
-                      <img 
-                        src={firstAccount.app.imgSrc} 
+                      <Image
+                        src={firstAccount.app.imgSrc}
                         alt={appName}
-                        className="w-10 h-10 flex-shrink-0 rounded object-contain"
+                        width={40}
+                        height={40}
+                        className="flex-shrink-0 rounded object-contain"
                       />
                     ) : (
                       <div className="w-10 h-10 flex-shrink-0 bg-muted rounded flex items-center justify-center text-sm font-medium">

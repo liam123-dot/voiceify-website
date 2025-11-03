@@ -21,12 +21,14 @@ import {
 interface DeletePhoneNumberButtonProps {
   phoneNumberId: string
   phoneNumber: string
+  slug: string
   onSuccess?: () => void
 }
 
 export function DeletePhoneNumberButton({ 
   phoneNumberId, 
   phoneNumber,
+  slug,
   onSuccess 
 }: DeletePhoneNumberButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false)
@@ -36,7 +38,7 @@ export function DeletePhoneNumberButton({
   async function handleDelete() {
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/phone-numbers/${phoneNumberId}`, {
+      const response = await fetch(`/api/${slug}/phone-numbers/${phoneNumberId}`, {
         method: 'DELETE',
       })
 
@@ -78,8 +80,8 @@ export function DeletePhoneNumberButton({
       <AlertDialogTrigger asChild>
         <Button 
           variant="ghost" 
-          size="sm"
-          className="text-destructive hover:text-destructive"
+          size="icon"
+          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
         >
           <IconTrash className="h-4 w-4" />
         </Button>

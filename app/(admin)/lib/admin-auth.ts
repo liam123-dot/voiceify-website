@@ -5,6 +5,15 @@ import { getAuthSession } from '@/lib/auth';
 
 const ALLOWED_ADMIN_EMAILS = ['liam@buchananautomations.com'];
 
+/**
+ * Check if an email address belongs to an admin user
+ * @param email - The email address to check
+ * @returns true if the email is in the allowed admin list
+ */
+export function checkIsAdminEmail(email: string | null | undefined): boolean {
+  return email ? ALLOWED_ADMIN_EMAILS.includes(email) : false;
+}
+
 export async function requireAdmin() {
   const { user } = await withAuth();
 
@@ -14,7 +23,7 @@ export async function requireAdmin() {
   }
 
   // Check if user is in the allowed admins list
-  if (!ALLOWED_ADMIN_EMAILS.includes(user.email)) {
+  if (!checkIsAdminEmail(user.email)) {
     // Redirect to user's organization if not an admin
     const { slug } = await getAuthSession();
     if (slug) {
@@ -30,7 +39,7 @@ export async function requireAdmin() {
 export async function isAdmin(): Promise<boolean> {
   try {
     const { user } = await withAuth();
-    return user?.email ? ALLOWED_ADMIN_EMAILS.includes(user.email) : false;
+    return checkIsAdminEmail(user?.email);
   } catch {
     return false;
   }
@@ -45,7 +54,7 @@ export async function checkAdminAuth(): Promise<{ isAdmin: boolean; user: Awaite
       return { isAdmin: false, user: null };
     }
 
-    const isUserAdmin = ALLOWED_ADMIN_EMAILS.includes(user.email);
+    const isUserAdmin = checkIsAdminEmail(user.email);
     return { isAdmin: isUserAdmin, user };
   } catch {
     return { isAdmin: false, user: null };

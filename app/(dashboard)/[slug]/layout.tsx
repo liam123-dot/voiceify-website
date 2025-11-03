@@ -19,7 +19,7 @@ export default async function DashboardLayout({
   params,
 }: DashboardLayoutProps) {
   const { slug: requestedSlug } = await params
-  const { user, organizationId, slug } = await getAuthSession(requestedSlug)
+  const { user, organizationId, slug, isAdmin } = await getAuthSession(requestedSlug)
 
   // If organizationId is undefined, user doesn't have access to this slug
   if (!organizationId) {
@@ -37,14 +37,14 @@ export default async function DashboardLayout({
     <SidebarProvider
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
+          "--sidebar-width": "14rem",
+          "--header-height": "3.5rem",
         } as React.CSSProperties
       }
     >
       <AppSidebar variant="inset" slug={requestedSlug} />
       <SidebarInset>
-        <SiteHeader slug={requestedSlug} />
+        <SiteHeader slug={requestedSlug} isAdmin={isAdmin} />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">

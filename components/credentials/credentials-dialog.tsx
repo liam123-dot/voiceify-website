@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import Image from 'next/image'
 import { useQuery } from "@tanstack/react-query"
 import { Search, Loader2, ExternalLink } from "lucide-react"
 import {
@@ -30,6 +31,22 @@ export function CredentialsDialog({ slug, onConnectionSuccess, app }: Credential
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [connectToken, setConnectToken] = useState<TokenResponse | null>(null)
 
+  const fetchConnectToken = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/${slug}/tools/credentials/token`)
+      if (!response.ok) {
+        throw new Error('Failed to generate connect token')
+      }
+      const data: TokenResponse = await response.json()
+      if (data.success) {
+        setConnectToken(data)
+      }
+    } catch (error) {
+      console.error('Error fetching connect token:', error)
+      toast.error('Failed to initialize connection')
+    }
+  }, [slug])
+
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -44,30 +61,7 @@ export function CredentialsDialog({ slug, onConnectionSuccess, app }: Credential
     if (open) {
       fetchConnectToken()
     }
-  }, [open])
-
-  // If app is provided, connect directly when token is ready
-  useEffect(() => {
-    if (open && app && connectToken?.connectLinkUrl) {
-      handleConnectApp(app)
-    }
-  }, [open, app, connectToken])
-
-  const fetchConnectToken = async () => {
-    try {
-      const response = await fetch(`/api/${slug}/tools/credentials/token`)
-      if (!response.ok) {
-        throw new Error('Failed to generate connect token')
-      }
-      const data: TokenResponse = await response.json()
-      if (data.success) {
-        setConnectToken(data)
-      }
-    } catch (error) {
-      console.error('Error fetching connect token:', error)
-      toast.error('Failed to initialize connection')
-    }
-  }
+  }, [open, fetchConnectToken])
 
   // Fetch apps based on search query
   const { data: appsData, isLoading: appsLoading } = useQuery<AppsResponse>({
@@ -88,7 +82,7 @@ export function CredentialsDialog({ slug, onConnectionSuccess, app }: Credential
   })
 
   // Handle connecting an app
-  const handleConnectApp = async (app: PipedreamApp) => {
+  const handleConnectApp = useCallback(async (app: PipedreamApp) => {
     try {
       if (!connectToken?.connectLinkUrl) {
         throw new Error('Connection token not ready. Please try again.')
@@ -104,7 +98,7 @@ export function CredentialsDialog({ slug, onConnectionSuccess, app }: Credential
       const left = window.screen.width / 2 - width / 2
       const top = window.screen.height / 2 - height / 2
       window.open(
-        connectUrl.toString(), 
+        connectUrl.toString(),
         'pipedream-connect',
         `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
       )
@@ -125,7 +119,14 @@ export function CredentialsDialog({ slug, onConnectionSuccess, app }: Credential
       console.error('Error connecting app:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to connect app')
     }
-  }
+  }, [connectToken, onConnectionSuccess])
+
+  // If app is provided, connect directly when token is ready
+  useEffect(() => {
+    if (open && app && connectToken?.connectLinkUrl) {
+      handleConnectApp(app)
+    }
+  }, [open, app, connectToken, handleConnectApp])
 
   const apps = appsData?.apps || []
 
@@ -202,10 +203,12 @@ export function CredentialsDialog({ slug, onConnectionSuccess, app }: Credential
                       <CardContent className="p-4">
                         <div className="flex flex-col items-center gap-2 text-center">
                           {appItem.imgSrc ? (
-                            <img
+                            <Image
                               src={appItem.imgSrc}
                               alt={appItem.name}
-                              className="w-12 h-12 rounded object-contain"
+                              width={48}
+                              height={48}
+                              className="rounded object-contain"
                             />
                           ) : (
                             <div className="w-12 h-12 rounded bg-muted flex items-center justify-center text-lg font-semibold">

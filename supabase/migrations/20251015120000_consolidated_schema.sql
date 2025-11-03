@@ -1,7 +1,7 @@
 -- ============================================
--- Voiceify Database Schema - Consolidated Migration
+-- Clearsky AI Database Schema - Consolidated Migration
 -- ============================================
--- This migration sets up the complete database schema for Voiceify
+-- This migration sets up the complete database schema for Clearsky AI
 -- Authentication is handled by WorkOS. Organization IDs are UUIDs
 -- with foreign key references to the organisations table.
 -- ============================================

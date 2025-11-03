@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { formatDistanceToNow, format } from 'date-fns'
+import { format } from 'date-fns'
 import {
   Table,
   TableBody,
@@ -16,7 +16,13 @@ import { PhoneIcon, ClockIcon } from 'lucide-react'
 import { CallDetailSheet } from './call-detail-sheet'
 
 interface CallsTableProps {
-  calls: (Call & { agents?: { name: string } })[]
+  calls: (Call & { agents?: { name: string }, organisations?: { slug: string } })[]
+  slug: string
+  showEvents?: boolean
+  showCosts?: boolean
+  showTimeline?: boolean
+  showLatency?: boolean
+  showOrganization?: boolean
 }
 
 function formatDuration(seconds: number | null): string {
@@ -60,8 +66,8 @@ function getStatusLabel(status: CallStatus): string {
   }
 }
 
-export function CallsTable({ calls }: CallsTableProps) {
-  const [selectedCall, setSelectedCall] = useState<(Call & { agents?: { name: string } }) | null>(null)
+export function CallsTable({ calls, slug, showEvents = false, showCosts = false, showTimeline = false, showLatency = false, showOrganization = false }: CallsTableProps) {
+  const [selectedCall, setSelectedCall] = useState<(Call & { agents?: { name: string }, organisations?: { slug: string } }) | null>(null)
 
   return (
     <>
@@ -91,7 +97,10 @@ export function CallsTable({ calls }: CallsTableProps) {
                   onClick={() => setSelectedCall(call)}
                 >
                   <TableCell className="font-medium">
-                    {call.agents?.name || 'Unknown Agent'}
+                    {showOrganization && call.organisations?.slug 
+                      ? `${call.organisations.slug} - ${call.agents?.name || 'Unknown Agent'}`
+                      : call.agents?.name || 'Unknown Agent'
+                    }
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -122,7 +131,12 @@ export function CallsTable({ calls }: CallsTableProps) {
 
       <CallDetailSheet
         call={selectedCall}
+        slug={selectedCall?.organisations?.slug || slug}
         open={!!selectedCall}
+        showEvents={showEvents}
+        showCosts={showCosts}
+        showTimeline={showTimeline}
+        showLatency={showLatency}
         onOpenChange={(open) => !open && setSelectedCall(null)}
       />
     </>
